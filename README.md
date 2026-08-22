@@ -21,10 +21,13 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the technical layout.
    - **logic / reasoning** — how the core mechanism actually works, end to end
    - **tech stack awareness** — why these libraries and design choices, over alternatives
    - **usage / functionality** — what happens when someone uses it, failure cases included
-3. The candidate answers live, no re-rolls.
-4. The LLM grades the reasoning, not the vocabulary. A confident, correct
-   explanation in the candidate's own words scores well with no code quoted;
-   answers vague enough to describe any project score zero.
+3. The candidate answers live under a per-question clock, no re-rolls.
+4. Before anything is graded, one adaptive follow-up pushes on the candidate's
+   own wording from whichever answer looks least likely to be theirs.
+5. The LLM grades the reasoning, not the vocabulary, weighing the follow-up
+   heavily. A confident, correct explanation in the candidate's own words scores
+   well with no code quoted; answers vague enough to describe any project score
+   zero.
 
 Deliberately **not** line-number or syntax trivia. "Why did you slice
 `text[4:]`?" is a question a stranger can answer off the diff and the actual
@@ -32,6 +35,42 @@ author can fail out loud. The questions are meant to be answerable by whoever
 genuinely built the thing, without the source in front of them.
 
 Try it on this repo's own URL once it's public — that's intentional.
+
+### Anti-gaming measures
+
+The obvious attack is to paste the question into a chatbot and paste the answer
+back. Three things make that expensive:
+
+**A 75-second clock per question.** It starts when the question renders and is
+derived from wall-clock time rather than accumulated ticks, so backgrounding the
+tab does not buy extra seconds. When it expires the answer commits as-is — blank
+included — and the box locks. Time remaining at commit is recorded, because a long
+polished answer submitted with most of the clock unspent was not composed in the
+box.
+
+**Paste is disabled** in the answer field (`paste` and `drop` are both blocked —
+drag-and-drop text would otherwise walk straight past a paste-only guard).
+
+**One adaptive follow-up, before grading.** Once answers are in, the answer least
+likely to have been typed by its author is selected — weighting typing rate by
+length, so a suspiciously fast essay outranks a fast one-liner — and a single
+follow-up is generated that quotes that answer's specific wording back and pushes
+on it. Same clock, same no-paste rule. Grading happens only after this round, so a
+candidate cannot bank a score and abandon the round they cannot pass.
+
+Measured on `psf/requests`, same repo and same time budget:
+
+| Profile | Behaviour | Score |
+|---|---|---|
+| Pasted AI answer | committed with 63s of 75s left, could not defend its wording | **0/100** |
+| Genuine author | typed distinct answers, defended the follow-up | **100/100** |
+
+**What this does not do.** The timer and the paste block are client-side. They
+raise the cost of casual cheating; they do not stop anyone willing to call the API
+directly with a forged `seconds_left`. The follow-up round is the measure that
+actually holds, because it demands understanding at response time regardless of how
+the request was made. Server-issued timestamps at generation, with elapsed time
+computed server-side, are the real fix and are not built yet.
 
 ### Known limitation: comprehension is not difficulty
 

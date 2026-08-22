@@ -98,7 +98,39 @@ CODE:
     return _parse_quiz_payload(_strip_code_fence(response.text))
 
 
-async def grade_answers(questions: list[dict], answers: list[dict]) -> dict:
+async def generate_followup_question(question: dict, answer: str) -> str:
+    """
+    One sharp follow-up that pushes on the candidate's own wording.
+
+    The point is not to ask something harder - it is to ask something that is only
+    answerable by whoever actually meant what they wrote. A pasted answer has no
+    author behind it to defend it.
+    """
+    prompt = f"""A developer was asked this about a project they claim to have built:
+
+QUESTION: {question.get("question", "")}
+
+THEIR ANSWER: {answer}
+
+Write ONE short follow-up question that quotes or directly references specific wording
+from THEIR ANSWER and pushes on it. Ask what that specific claim implies, what happens
+at its edges, or what the consequence is if it fails.
+
+Example shape: "You said X handles the empty case by Y - what does the caller see if Y
+throws?"
+
+It must be unanswerable by someone who did not mean what they wrote. Do not ask a
+general question about the project. Do not ask them to quote code.
+
+Return ONLY the question text. No prose, no JSON, no quotes around it.
+"""
+    response = await _model().generate_content_async(prompt)
+    return response.text.strip().strip('"')
+
+
+async def grade_answers(
+    questions: list[dict], answers: list[dict], followup: dict | None = None
+) -> dict:
     qa_pairs = "\n\n".join(
         "Q: {q}\nA: {a}".format(
             q=q["question"],
@@ -106,6 +138,24 @@ async def grade_answers(questions: list[dict], answers: list[dict]) -> dict:
         )
         for q in questions
     )
+
+    followup_block = ""
+    if followup and followup.get("question"):
+        followup_block = f"""
+
+FOLLOW-UP ROUND - this is the strongest signal you have.
+After answering, the candidate was pushed on their own wording and replied under time
+pressure with no chance to prepare:
+
+  Follow-up asked : {followup.get("question")}
+  They replied    : {followup.get("answer") or "(no answer)"}
+
+Weigh this heavily. If they cannot defend, explain, or even engage with wording they
+themselves used, treat the original answer it came from as very likely not their own
+work and score that answer down hard, regardless of how polished it looked. If they
+defend it coherently, that corroborates the original answer and it should score at
+least as well as it otherwise would.
+"""
 
     prompt = f"""You are a hackathon judge scoring a developer's answers about a
 project they claim to have built.
@@ -129,6 +179,7 @@ Return ONLY JSON, no prose:
 {{"overall_score": 0-100, "breakdown": [{{"question": "...", "score": 0-10, "note": "..."}}]}}
 
 {qa_pairs}
+{followup_block}
 """
     response = await _model().generate_content_async(prompt)
     return json.loads(_strip_code_fence(response.text))

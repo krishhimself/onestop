@@ -16,7 +16,17 @@ quiz_attempts collection:
     "tier": "trivial" | "moderate" | "complex" | "unknown",
     "reasoning": str
   },
-  "status": "generated" | "graded",
+  "answers": [
+    {"question_id": str, "answer": str, "seconds_left": float | None}
+  ] | None,
+  "followup": {
+    "id": str,
+    "question": str,
+    "targets_question_id": str,
+    "answer": str | None,
+    "seconds_left": float | None
+  } | None,
+  "status": "generated" | "awaiting_followup" | "graded",
   "result": {
     "overall_score": float,
     "breakdown": [{"question": str, "score": int, "note": str}]

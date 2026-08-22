@@ -7,9 +7,18 @@ export function generateQuiz(repoUrl) {
   });
 }
 
+// Records answers and opens the follow-up round — does not return a score.
 export function submitQuiz(quizId, answers) {
   return request("/quiz/submit", {
     method: "POST",
     body: JSON.stringify({ quiz_id: quizId, answers }),
+  });
+}
+
+// Final grading: original answers plus the follow-up defence.
+export function submitFollowUp(quizId, answer, secondsLeft) {
+  return request("/quiz/followup", {
+    method: "POST",
+    body: JSON.stringify({ quiz_id: quizId, answer, seconds_left: secondsLeft }),
   });
 }

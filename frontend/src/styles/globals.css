@@ -47,3 +47,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .result .headline { margin: 0 0 4px 0; }
 .result .complexity { color: #9a9aa5; font-weight: 500; }
 .result .complexity-why { margin: 0 0 16px 0; color: #7d8194; font-size: 13px; }
+
+.rules { color: #7d8194; font-size: 13px; margin: 0 0 16px 0; }
+.question .meta { display: flex; align-items: center; gap: 10px; margin: 6px 0 0 0; }
+.question .cat {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: #7d8194; border: 1px solid #2a2d36; border-radius: 999px; padding: 2px 8px;
+}
+.question .timer {
+  margin-left: auto; font-variant-numeric: tabular-nums;
+  font-size: 13px; color: #9a9aa5;
+}
+.question .timer.urgent { color: #ff6b6b; font-weight: 600; }
+.question.locked { opacity: 0.65; }
+.question textarea:disabled { cursor: not-allowed; }
