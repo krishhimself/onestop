@@ -4,7 +4,7 @@ import QuestionCard from "./components/QuestionCard";
 import ScoreResult from "./components/ScoreResult";
 import { generateQuiz, submitQuiz, submitFollowUp } from "./api";
 
-export default function QuizPage() {
+export default function QuizPage({ onUnauthorized }) {
   const [repoUrl, setRepoUrl] = useState("");
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -44,6 +44,7 @@ export default function QuizPage() {
       setQuiz(data);
       setAnswers({});
     } catch (e) {
+      if (e.status === 401) return onUnauthorized?.();
       setError(e.message);
     } finally {
       setLoading(false);
@@ -66,6 +67,7 @@ export default function QuizPage() {
       }));
       setFollowup(await submitQuiz(quiz.quiz_id, payload));
     } catch (e) {
+      if (e.status === 401) return onUnauthorized?.();
       setError(e.message);
       sent.current.answers = false;
     } finally {
@@ -84,6 +86,7 @@ export default function QuizPage() {
         await submitFollowUp(quiz.quiz_id, followupAnswer, timeLeft.current[id] ?? null)
       );
     } catch (e) {
+      if (e.status === 401) return onUnauthorized?.();
       setError(e.message);
       sent.current.followup = false;
     } finally {

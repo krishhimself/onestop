@@ -10,10 +10,14 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.security import create_access_token
 from app.main import app
 from app.services import quiz_service
 
-client = TestClient(app)
+# Every quiz route is behind the auth gate, so the client here is authenticated by
+# default. Rejection of missing or bad tokens is covered in test_auth_api.py.
+AUTH = {"Authorization": f"Bearer {create_access_token('test-user', 'candidate')}"}
+client = TestClient(app, headers=AUTH)
 
 
 def test_root_ok():
