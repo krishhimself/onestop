@@ -12,6 +12,10 @@ quiz_attempts collection:
     {"id": str, "question": str, "file_reference": str | None,
      "category": "problem" | "logic" | "stack" | "usage" | None}
   ],
+  "complexity": {
+    "tier": "trivial" | "moderate" | "complex" | "unknown",
+    "reasoning": str
+  },
   "status": "generated" | "graded",
   "result": {
     "overall_score": float,
