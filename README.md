@@ -48,12 +48,18 @@ included — and the box locks. Time remaining at commit is recorded, because a 
 polished answer submitted with most of the clock unspent was not composed in the
 box.
 
-**Paste is disabled** in the answer field (`paste` and `drop` are both blocked —
-drag-and-drop text would otherwise walk straight past a paste-only guard).
+**Paste is detected, not blocked.** Blocking it only teaches a candidate to retype
+what they pasted; recording it tells us which answer to interrogate. React fires one
+change event per input, so ordinary typing arrives as a stream of single-character
+deltas — a single event that adds a whole paragraph did not come from a keyboard.
+That answer is silently marked. Nothing is prevented and no warning is shown, so the
+paste appears to have worked.
 
 **One adaptive follow-up, before grading.** Once answers are in, the answer least
-likely to have been typed by its author is selected — weighting typing rate by
-length, so a suspiciously fast essay outranks a fast one-liner — and a single
+likely to have been typed by its author is selected. A recorded paste wins outright,
+since it is evidence rather than inference, with ties going to the largest single
+injection; failing that, typing rate weighted by length, so a suspiciously fast essay
+outranks a fast one-liner. A single
 follow-up is generated that quotes that answer's specific wording back and pushes
 on it. Same clock, same no-paste rule. Grading happens only after this round, so a
 candidate cannot bank a score and abandon the round they cannot pass.
@@ -65,12 +71,15 @@ Measured on `psf/requests`, same repo and same time budget:
 | Pasted AI answer | committed with 63s of 75s left, could not defend its wording | **0/100** |
 | Genuine author | typed distinct answers, defended the follow-up | **100/100** |
 
-**What this does not do.** The timer and the paste block are client-side. They
+**What this does not do.** The timer and the paste detector are client-side. They
 raise the cost of casual cheating; they do not stop anyone willing to call the API
-directly with a forged `seconds_left`. The follow-up round is the measure that
-actually holds, because it demands understanding at response time regardless of how
-the request was made. Server-issued timestamps at generation, with elapsed time
-computed server-side, are the real fix and are not built yet.
+directly with a forged `seconds_left` and `flagged_paste: false`. Detection also has
+a seam of its own: pasting after a pause long enough to look like thinking clears the
+timing guard, and dictation software can legitimately commit a long phrase in one
+event. The follow-up round is the measure that actually holds, because it demands
+understanding at response time regardless of how the request was made. Server-issued
+timestamps at generation, with elapsed time computed server-side, are the real fix and
+are not built yet.
 
 ### Known limitation: comprehension is not difficulty
 

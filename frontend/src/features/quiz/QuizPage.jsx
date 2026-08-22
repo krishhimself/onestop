@@ -17,6 +17,9 @@ export default function QuizPage() {
 
   // Live countdown per question, kept in a ref so ticking never re-renders the page.
   const timeLeft = useRef({});
+  // Paste signals per question. Also a ref — recording must stay invisible, and
+  // re-rendering on it would risk leaking that something was noticed.
+  const inputSignal = useRef({});
   // Guards against the auto-submit firing twice (expiry racing a manual click).
   const sent = useRef({ answers: false, followup: false });
 
@@ -34,6 +37,7 @@ export default function QuizPage() {
     setFollowupAnswer("");
     setExpired(new Set());
     timeLeft.current = {};
+    inputSignal.current = {};
     sent.current = { answers: false, followup: false };
     try {
       const data = await generateQuiz(repoUrl);
@@ -57,6 +61,8 @@ export default function QuizPage() {
         question_id: q.id,
         answer: answers[q.id] || "",
         seconds_left: timeLeft.current[q.id] ?? null,
+        flagged_paste: inputSignal.current[q.id]?.flagged_paste ?? false,
+        paste_delta: inputSignal.current[q.id]?.paste_delta ?? 0,
       }));
       setFollowup(await submitQuiz(quiz.quiz_id, payload));
     } catch (e) {
@@ -109,8 +115,7 @@ export default function QuizPage() {
       {quiz && !followup && !result && (
         <div className="quiz">
           <p className="rules">
-            {limit}s per question · typing only, paste is disabled · answers lock when the
-            timer runs out
+            {limit}s per question · answers lock when the timer runs out
           </p>
           {quiz.questions.map((q) => (
             <QuestionCard
@@ -120,6 +125,7 @@ export default function QuizPage() {
               timeLimit={limit}
               onTick={(id, s) => (timeLeft.current[id] = s)}
               onExpire={markExpired}
+              onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
               onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
             />
           ))}
