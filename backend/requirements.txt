@@ -3,7 +3,10 @@ uvicorn[standard]
 motor
 httpx
 google-generativeai
-pydantic
+pydantic[email]
 pydantic-settings
+passlib[bcrypt]
+bcrypt<5  # passlib 1.7.4's bcrypt backend fails its self-test against bcrypt 5.x
+pyjwt
 pytest
 pytest-asyncio

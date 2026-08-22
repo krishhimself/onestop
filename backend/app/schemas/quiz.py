@@ -10,7 +10,8 @@ TIME_LIMIT_SECONDS = 75
 
 class QuizGenerateRequest(BaseModel):
     repo_url: str
-    user_id: Optional[str] = None
+    # user_id is deliberately absent: it comes from the access token, so a caller
+    # cannot attribute a quiz attempt to somebody else by editing the body.
 
 
 class QuizQuestion(BaseModel):

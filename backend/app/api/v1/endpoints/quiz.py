@@ -3,11 +3,16 @@ Thin HTTP layer for the quiz feature. No business logic here — only
 request/response translation and HTTP error mapping. Logic lives in
 app/services/quiz_service.py.
 
+Every route here requires an access token. The quiz is a record of what a
+specific person understood, so an unattributed attempt is not meaningful.
+
 Flow: generate -> submit (opens follow-up) -> followup (final grade).
 Grading deliberately happens only after the follow-up, so a candidate
 cannot bank a score and walk away from the round they cannot pass.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.dependencies import get_current_user
 
 from app.schemas.quiz import (
     FollowUpRequest,
@@ -23,15 +28,15 @@ router = APIRouter()
 
 
 @router.post("/generate", response_model=QuizGenerateResponse)
-async def generate(req: QuizGenerateRequest):
+async def generate(req: QuizGenerateRequest, user: dict = Depends(get_current_user)):
     try:
-        return await quiz_service.create_quiz(req.repo_url, req.user_id)
+        return await quiz_service.create_quiz(req.repo_url, user["user_id"])
     except ValueError:
         raise HTTPException(400, "Couldn't read source files from that repo — make sure it's public.")
 
 
 @router.post("/submit", response_model=QuizSubmitResponse)
-async def submit(req: QuizSubmitRequest):
+async def submit(req: QuizSubmitRequest, user: dict = Depends(get_current_user)):
     """Records answers and returns the adaptive follow-up. Does not grade."""
     try:
         return await quiz_service.start_followup(
@@ -44,7 +49,7 @@ async def submit(req: QuizSubmitRequest):
 
 
 @router.post("/followup", response_model=QuizResultResponse)
-async def followup(req: FollowUpRequest):
+async def followup(req: FollowUpRequest, user: dict = Depends(get_current_user)):
     """Grades the original answers together with the follow-up defence."""
     try:
         result = await quiz_service.grade_quiz(req.quiz_id, req.answer, req.seconds_left)
