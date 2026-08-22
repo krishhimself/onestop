@@ -43,3 +43,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .feedback-item { padding: 12px 16px; background: #171922; border-radius: 10px; margin-bottom: 10px; }
 .feedback-item .q { margin: 0 0 4px 0; color: #c7c9d1; }
 .feedback-item .s { margin: 0; color: #9a9aa5; font-size: 14px; }
+
+.result .headline { margin: 0 0 4px 0; }
+.result .complexity { color: #9a9aa5; font-weight: 500; }
+.result .complexity-why { margin: 0 0 16px 0; color: #7d8194; font-size: 13px; }

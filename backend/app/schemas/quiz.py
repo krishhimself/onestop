@@ -13,12 +13,19 @@ class QuizQuestion(BaseModel):
     id: str
     question: str
     file_reference: Optional[str] = None
+    category: Optional[str] = None  # problem | logic | stack | usage
+
+
+class ComplexityInfo(BaseModel):
+    tier: str  # trivial | moderate | complex (| unknown if unrated)
+    reasoning: str
 
 
 class QuizGenerateResponse(BaseModel):
     quiz_id: str
     repo_url: str
     questions: List[QuizQuestion]
+    complexity: ComplexityInfo
 
 
 class QuizAnswer(BaseModel):

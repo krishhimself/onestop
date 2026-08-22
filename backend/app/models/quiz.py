@@ -9,8 +9,13 @@ quiz_attempts collection:
   "repo_url": str,
   "user_id": str | None,
   "questions": [
-    {"id": str, "question": str, "file_reference": str | None}
+    {"id": str, "question": str, "file_reference": str | None,
+     "category": "problem" | "logic" | "stack" | "usage" | None}
   ],
+  "complexity": {
+    "tier": "trivial" | "moderate" | "complex" | "unknown",
+    "reasoning": str
+  },
   "status": "generated" | "graded",
   "result": {
     "overall_score": float,

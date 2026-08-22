@@ -69,7 +69,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      {result && <ScoreResult result={result} />}
+      {result && <ScoreResult result={result} complexity={quiz?.complexity} />}
     </div>
   );
 }

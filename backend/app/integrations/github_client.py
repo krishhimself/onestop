@@ -32,7 +32,8 @@ async def fetch_repo_files(repo_url: str, max_files: int = 12) -> List[Dict]:
     owner_repo = repo_url.rstrip("/").split("github.com/")[-1]
     owner, repo = owner_repo.split("/")[:2]
 
-    async with httpx.AsyncClient(timeout=20, headers=_headers()) as client:
+    # follow_redirects: GitHub 301s the API path for renamed/transferred repos
+    async with httpx.AsyncClient(timeout=20, headers=_headers(), follow_redirects=True) as client:
         tree_resp = await client.get(f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/main?recursive=1")
         if tree_resp.status_code != 200:
             tree_resp = await client.get(f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/master?recursive=1")
