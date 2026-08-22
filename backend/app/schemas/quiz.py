@@ -13,6 +13,7 @@ class QuizQuestion(BaseModel):
     id: str
     question: str
     file_reference: Optional[str] = None
+    category: Optional[str] = None  # problem | logic | stack | usage
 
 
 class QuizGenerateResponse(BaseModel):

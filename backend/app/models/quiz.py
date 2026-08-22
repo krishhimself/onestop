@@ -9,7 +9,8 @@ quiz_attempts collection:
   "repo_url": str,
   "user_id": str | None,
   "questions": [
-    {"id": str, "question": str, "file_reference": str | None}
+    {"id": str, "question": str, "file_reference": str | None,
+     "category": "problem" | "logic" | "stack" | "usage" | None}
   ],
   "status": "generated" | "graded",
   "result": {
