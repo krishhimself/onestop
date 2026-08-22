@@ -112,7 +112,7 @@ async def test_start_followup_targets_the_flagged_answer(monkeypatch, attempt):
     monkeypatch.setattr(quiz_service.gemini_client, "generate_followup_question", gen)
     monkeypatch.setattr(quiz_service.quiz_repository, "update_followup", AsyncMock())
 
-    out = await quiz_service.start_followup("quiz-1", attempt["answers"])
+    out = await quiz_service.start_followup("quiz-1", attempt["answers"], "u1")
 
     assert out["followup"]["targets_question_id"] == "q2"
     # the pasted answer's text is what the model was asked to push on
@@ -127,7 +127,7 @@ async def test_start_followup_does_not_grade(monkeypatch, attempt):
     graded = AsyncMock()
     monkeypatch.setattr(quiz_service.gemini_client, "grade_answers", graded)
 
-    out = await quiz_service.start_followup("quiz-1", attempt["answers"])
+    out = await quiz_service.start_followup("quiz-1", attempt["answers"], "u1")
 
     graded.assert_not_called()
     assert "score" not in out
@@ -136,7 +136,7 @@ async def test_start_followup_does_not_grade(monkeypatch, attempt):
 async def test_start_followup_unknown_quiz(monkeypatch):
     monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=None))
     with pytest.raises(LookupError):
-        await quiz_service.start_followup("nope", [answer("q1")])
+        await quiz_service.start_followup("nope", [answer("q1")], "u1")
 
 
 # --- final grading ---------------------------------------------------------
@@ -147,7 +147,7 @@ async def test_grade_quiz_passes_the_followup_defence_to_the_grader(monkeypatch,
     monkeypatch.setattr(quiz_service.gemini_client, "grade_answers", grade)
     monkeypatch.setattr(quiz_service.quiz_repository, "update_result", AsyncMock())
 
-    result = await quiz_service.grade_quiz("quiz-1", "my defence", seconds_left=9.0)
+    result = await quiz_service.grade_quiz("quiz-1", "my defence", "u1", seconds_left=9.0)
 
     assert result["overall_score"] == 88
     sent = grade.call_args.kwargs["followup"]
@@ -158,4 +158,59 @@ async def test_grade_quiz_passes_the_followup_defence_to_the_grader(monkeypatch,
 async def test_grade_quiz_unknown_quiz(monkeypatch):
     monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=None))
     with pytest.raises(LookupError):
-        await quiz_service.grade_quiz("nope", "answer")
+        await quiz_service.grade_quiz("nope", "answer", "u1")
+
+
+# --- ownership ------------------------------------------------------------
+
+
+async def test_start_followup_refuses_another_users_quiz(monkeypatch, attempt):
+    """The quiz exists and the caller is authenticated — but it is not theirs."""
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    gen = AsyncMock()
+    monkeypatch.setattr(quiz_service.gemini_client, "generate_followup_question", gen)
+
+    with pytest.raises(LookupError):
+        await quiz_service.start_followup("quiz-1", attempt["answers"], "someone-else")
+    gen.assert_not_called(), "must refuse before spending an API call"
+
+
+async def test_grade_quiz_refuses_another_users_quiz(monkeypatch, attempt):
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    grade = AsyncMock()
+    monkeypatch.setattr(quiz_service.gemini_client, "grade_answers", grade)
+
+    with pytest.raises(LookupError):
+        await quiz_service.grade_quiz("quiz-1", "defence", "someone-else")
+    grade.assert_not_called()
+
+
+async def test_a_missing_quiz_and_someone_elses_are_indistinguishable(monkeypatch, attempt):
+    """Both raise LookupError, so the endpoint answers 404 either way."""
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=None))
+    with pytest.raises(LookupError) as missing:
+        await quiz_service.grade_quiz("nope", "d", "u1")
+
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    with pytest.raises(LookupError) as foreign:
+        await quiz_service.grade_quiz("quiz-1", "d", "someone-else")
+
+    assert str(missing.value) == str(foreign.value)
+
+
+async def test_unattributed_attempts_are_unreachable(monkeypatch, attempt):
+    """Attempts predating auth have no owner and prove nothing about anyone."""
+    attempt["user_id"] = None
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    with pytest.raises(LookupError):
+        await quiz_service.grade_quiz("quiz-1", "d", "u1")
+
+
+async def test_owner_still_gets_through(monkeypatch, attempt):
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    monkeypatch.setattr(quiz_service.gemini_client, "grade_answers",
+                        AsyncMock(return_value={"overall_score": 70, "breakdown": []}))
+    monkeypatch.setattr(quiz_service.quiz_repository, "update_result", AsyncMock())
+
+    result = await quiz_service.grade_quiz("quiz-1", "defence", "u1")
+    assert result["overall_score"] == 70
