@@ -42,10 +42,14 @@ def pick_suspect_answer(answers: list[dict], time_limit: int = TIME_LIMIT_SECOND
     """
     Choose the answer least likely to have been typed by its author.
 
-    Typing pace is the signal. A long, polished answer committed with most of the
-    clock still unspent was not composed in the box — nobody writes 900 considered
-    characters in twelve seconds. Weighting rate by length keeps a fast one-liner
-    from outranking a suspiciously fast essay.
+    A recorded paste wins outright: the client saw a whole paragraph arrive in one
+    input event, which is evidence rather than inference. Ties among flagged answers
+    go to the largest single injection.
+
+    Otherwise typing pace is the signal. A long, polished answer committed with most
+    of the clock still unspent was not composed in the box — nobody writes 900
+    considered characters in twelve seconds. Weighting rate by length keeps a fast
+    one-liner from outranking a suspiciously fast essay.
 
     Falls back to the first non-empty answer, then to the first answer, so the
     follow-up round always happens even with no timing data at all.
@@ -53,6 +57,12 @@ def pick_suspect_answer(answers: list[dict], time_limit: int = TIME_LIMIT_SECOND
     answered = [a for a in answers if (a.get("answer") or "").strip()]
     if not answered:
         return answers[0] if answers else None
+
+    # A recorded paste outranks every timing heuristic — it is direct evidence rather
+    # than an inference. Among several, push on the largest single injection.
+    pasted = [a for a in answered if a.get("flagged_paste")]
+    if pasted:
+        return max(pasted, key=lambda a: a.get("paste_delta") or 0)
 
     timed = [a for a in answered if a.get("seconds_left") is not None]
     if not timed:

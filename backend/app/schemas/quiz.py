@@ -39,6 +39,10 @@ class QuizAnswer(BaseModel):
     # Countdown remaining when the answer was committed. A long answer submitted with
     # most of the clock still left is the signal that it was not typed from scratch.
     seconds_left: Optional[float] = None
+    # Client-observed paste signal: a single input event that added a paragraph.
+    # Recorded silently — the candidate is never told it was noticed.
+    flagged_paste: bool = False
+    paste_delta: int = 0  # largest flagged single-event delta, used to rank flags
 
 
 class QuizSubmitRequest(BaseModel):
