@@ -155,3 +155,69 @@ def test_generate_attributes_the_quiz_to_the_token_not_the_body(monkeypatch, que
 
     assert resp.status_code == 200
     assert spy.call_args.args[1] == "real-user"
+
+
+# --- ownership at the HTTP boundary ---------------------------------------
+
+
+def test_another_user_cannot_submit_against_your_quiz(monkeypatch):
+    """
+    Being logged in is not enough. Before this, any authenticated caller who knew
+    or guessed a quiz_id could answer somebody else's quiz, which made the
+    attribution the token establishes meaningless.
+    """
+    attempt = {"_id": "quiz-1", "user_id": "owner", "questions": [{"id": "a", "question": "q"}]}
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    gen = AsyncMock(return_value="follow-up?")
+    monkeypatch.setattr(quiz_service.gemini_client, "generate_followup_question", gen)
+    monkeypatch.setattr(quiz_service.quiz_repository, "update_followup", AsyncMock())
+
+    body = {"quiz_id": "quiz-1", "answers": [{"question_id": "a", "answer": "b"}]}
+    intruder = client.post("/api/v1/quiz/submit", json=body, headers=auth_header("intruder"))
+
+    assert intruder.status_code == 404
+    gen.assert_not_called(), "must refuse before spending an API call"
+
+
+def test_another_user_cannot_grade_your_quiz(monkeypatch):
+    attempt = {"_id": "quiz-1", "user_id": "owner", "questions": [], "answers": [], "followup": {}}
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    grade = AsyncMock()
+    monkeypatch.setattr(quiz_service.gemini_client, "grade_answers", grade)
+
+    resp = client.post("/api/v1/quiz/followup",
+                       json={"quiz_id": "quiz-1", "answer": "defence"},
+                       headers=auth_header("intruder"))
+
+    assert resp.status_code == 404
+    grade.assert_not_called()
+
+
+def test_a_foreign_quiz_looks_exactly_like_a_missing_one(monkeypatch):
+    """Otherwise the 404/403 split would leak which quiz ids exist."""
+    body = {"quiz_id": "quiz-1", "answers": [{"question_id": "a", "answer": "b"}]}
+
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=None))
+    missing = client.post("/api/v1/quiz/submit", json=body, headers=auth_header("intruder"))
+
+    attempt = {"_id": "quiz-1", "user_id": "owner", "questions": [{"id": "a", "question": "q"}]}
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    foreign = client.post("/api/v1/quiz/submit", json=body, headers=auth_header("intruder"))
+
+    assert missing.status_code == foreign.status_code == 404
+    assert missing.json() == foreign.json()
+
+
+def test_the_owner_can_still_submit(monkeypatch):
+    attempt = {"_id": "quiz-1", "user_id": "owner", "questions": [{"id": "a", "question": "q"}]}
+    monkeypatch.setattr(quiz_service.quiz_repository, "get_attempt", AsyncMock(return_value=attempt))
+    monkeypatch.setattr(quiz_service.gemini_client, "generate_followup_question",
+                        AsyncMock(return_value="follow-up?"))
+    monkeypatch.setattr(quiz_service.quiz_repository, "update_followup", AsyncMock())
+
+    resp = client.post("/api/v1/quiz/submit",
+                       json={"quiz_id": "quiz-1", "answers": [{"question_id": "a", "answer": "b"}]},
+                       headers=auth_header("owner"))
+
+    assert resp.status_code == 200
+    assert resp.json()["followup"]["targets_question_id"] == "a"

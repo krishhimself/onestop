@@ -76,16 +76,33 @@ def pick_suspect_answer(answers: list[dict], time_limit: int = TIME_LIMIT_SECOND
     return max(timed, key=suspicion)
 
 
-async def start_followup(quiz_id: str, answers: list[dict]) -> dict:
+async def _load_owned_attempt(quiz_id: str, user_id: str) -> dict:
+    """
+    Fetch an attempt, but only for the person it belongs to.
+
+    Ownership is enforced here rather than in each caller so it cannot be
+    forgotten by one of them. A quiz that exists but belongs to someone else
+    raises the same LookupError as one that does not exist, so the endpoint
+    answers 404 either way and cannot be used to discover which quiz ids are real.
+
+    Attempts created before authentication existed have no owner and are therefore
+    unreachable, which is correct: an unattributed attempt proves nothing about
+    anyone.
+    """
+    attempt = await quiz_repository.get_attempt(quiz_id)
+    if not attempt or attempt.get("user_id") != user_id:
+        raise LookupError("quiz_not_found")
+    return attempt
+
+
+async def start_followup(quiz_id: str, answers: list[dict], user_id: str) -> dict:
     """
     Record the answers and open the follow-up round.
 
     Deliberately does not grade yet — grading before the follow-up would let a
     candidate bank a score and abandon the round they cannot pass.
     """
-    attempt = await quiz_repository.get_attempt(quiz_id)
-    if not attempt:
-        raise LookupError("quiz_not_found")
+    attempt = await _load_owned_attempt(quiz_id, user_id)
 
     suspect = pick_suspect_answer(answers)
     if suspect is None:
@@ -114,11 +131,11 @@ async def start_followup(quiz_id: str, answers: list[dict]) -> dict:
     }
 
 
-async def grade_quiz(quiz_id: str, followup_answer: str, seconds_left: float | None = None) -> dict:
+async def grade_quiz(
+    quiz_id: str, followup_answer: str, user_id: str, seconds_left: float | None = None
+) -> dict:
     """Final grading — original answers plus the follow-up defence."""
-    attempt = await quiz_repository.get_attempt(quiz_id)
-    if not attempt:
-        raise LookupError("quiz_not_found")
+    attempt = await _load_owned_attempt(quiz_id, user_id)
 
     followup = dict(attempt.get("followup") or {})
     followup["answer"] = followup_answer

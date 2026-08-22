@@ -40,9 +40,11 @@ async def submit(req: QuizSubmitRequest, user: dict = Depends(get_current_user))
     """Records answers and returns the adaptive follow-up. Does not grade."""
     try:
         return await quiz_service.start_followup(
-            req.quiz_id, [a.model_dump() for a in req.answers]
+            req.quiz_id, [a.model_dump() for a in req.answers], user["user_id"]
         )
     except LookupError:
+        # Also the answer when the quiz exists but belongs to somebody else, so
+        # this cannot be used to discover which quiz ids are real.
         raise HTTPException(404, "Quiz not found")
     except ValueError:
         raise HTTPException(400, "No answers submitted")
@@ -52,8 +54,12 @@ async def submit(req: QuizSubmitRequest, user: dict = Depends(get_current_user))
 async def followup(req: FollowUpRequest, user: dict = Depends(get_current_user)):
     """Grades the original answers together with the follow-up defence."""
     try:
-        result = await quiz_service.grade_quiz(req.quiz_id, req.answer, req.seconds_left)
+        result = await quiz_service.grade_quiz(
+            req.quiz_id, req.answer, user["user_id"], req.seconds_left
+        )
     except LookupError:
+        # Also the answer when the quiz exists but belongs to somebody else, so
+        # this cannot be used to discover which quiz ids are real.
         raise HTTPException(404, "Quiz not found")
 
     return {

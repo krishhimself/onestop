@@ -7,7 +7,10 @@ quiz_attempts collection:
 {
   "_id": str (uuid4),
   "repo_url": str,
-  "user_id": str | None,
+  "user_id": str,  # owner; set from the access token, never from the request body.
+                   # Every read after creation goes through
+                   # quiz_service._load_owned_attempt, which refuses an attempt
+                   # belonging to anyone else.
   "questions": [
     {"id": str, "question": str, "file_reference": str | None,
      "category": "problem" | "logic" | "stack" | "usage" | None}
