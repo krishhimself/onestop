@@ -14,6 +14,7 @@ GITHUB_API = "https://api.github.com"
 
 SKIP_EXT = (".lock", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".ttf", ".md", ".gitignore")
 SKIP_DIRS = ("node_modules/", ".git/", "dist/", "build/", "venv/", "__pycache__/")
+_SKIP_DIR_NAMES = frozenset(d.strip("/") for d in SKIP_DIRS)
 
 
 def _headers() -> dict:
@@ -43,9 +44,10 @@ async def fetch_repo_files(repo_url: str, max_files: int = 12) -> List[Dict]:
             for item in tree
             if item["type"] == "blob"
             and not item["path"].lower().endswith(SKIP_EXT)
-            and not any(item["path"].startswith(d) for d in SKIP_DIRS)
+            and not any(part in _SKIP_DIR_NAMES for part in item["path"].split("/")[:-1])
         ]
-        candidates.sort(key=lambda i: i.get("size", 0))  # prefer smaller, likely-source files
+        candidates = [c for c in candidates if c.get("size", 0) > 200]  # drop empty/stub files
+        candidates.sort(key=lambda i: i.get("size", 0), reverse=True)  # prefer substantial source files
 
         files = []
         for item in candidates[:max_files]:

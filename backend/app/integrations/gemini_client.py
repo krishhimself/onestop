@@ -38,7 +38,7 @@ Return ONLY a JSON array, no prose:
 CODE:
 {file_context}
 """
-    response = _model().generate_content(prompt)
+    response = await _model().generate_content_async(prompt)
     return json.loads(_strip_code_fence(response.text))
 
 
@@ -60,5 +60,5 @@ Return ONLY JSON, no prose:
 
 {qa_pairs}
 """
-    response = _model().generate_content(prompt)
+    response = await _model().generate_content_async(prompt)
     return json.loads(_strip_code_fence(response.text))
