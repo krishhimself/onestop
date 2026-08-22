@@ -18,8 +18,15 @@ async def get_attempt(quiz_id: str) -> Optional[dict]:
     return await collection.find_one({"_id": quiz_id})
 
 
-async def update_result(quiz_id: str, result: dict) -> None:
+async def update_followup(quiz_id: str, answers: list[dict], followup: dict) -> None:
     await collection.update_one(
         {"_id": quiz_id},
-        {"$set": {"status": "graded", "result": result}},
+        {"$set": {"status": "awaiting_followup", "answers": answers, "followup": followup}},
     )
+
+
+async def update_result(quiz_id: str, result: dict, followup: dict | None = None) -> None:
+    changes = {"status": "graded", "result": result}
+    if followup is not None:
+        changes["followup"] = followup
+    await collection.update_one({"_id": quiz_id}, {"$set": changes})
