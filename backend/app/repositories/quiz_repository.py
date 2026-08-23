@@ -30,3 +30,21 @@ async def update_result(quiz_id: str, result: dict, followup: dict | None = None
     if followup is not None:
         changes["followup"] = followup
     await collection.update_one({"_id": quiz_id}, {"$set": changes})
+
+
+async def has_graded_attempt_scoring_at_least(user_id: str, minimum: float) -> bool:
+    """
+    True if this user owns at least one graded attempt at or above `minimum`.
+
+    Only `status: "graded"` counts: an attempt still awaiting its follow-up has no
+    defended score, and reading `result` off one would credit a score the candidate
+    has not yet had to stand behind.
+
+    Projected down to `_id` because the caller only needs the yes/no — there is no
+    reason to pull whole attempt documents across the wire to answer it.
+    """
+    match = await collection.find_one(
+        {"user_id": user_id, "status": "graded", "result.overall_score": {"$gte": minimum}},
+        {"_id": 1},
+    )
+    return match is not None

@@ -14,7 +14,7 @@ router = APIRouter()
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(req: RegisterRequest):
     try:
-        return await auth_service.register_user(req.email, req.password, req.role)
+        return await auth_service.register_user(req.email, req.password, req.role, req.name)
     except ValueError:
         # 409 rather than 400: the request was well-formed, the address is taken.
         raise HTTPException(409, "That email is already registered.")

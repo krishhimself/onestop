@@ -40,7 +40,8 @@ def auth_header(user_id="user-1", role="candidate"):
 
 def test_register_creates_a_user_and_returns_a_token(no_such_user):
     resp = client.post("/api/v1/auth/register",
-                       json={"email": "New@Example.com", "password": "hunter2hunter2", "role": "employer"})
+                       json={"name": "Ada Lovelace", "email": "New@Example.com",
+                             "password": "hunter2hunter2", "role": "employer"})
     assert resp.status_code == 201
     body = resp.json()
     assert body["token_type"] == "bearer" and body["role"] == "employer"
@@ -48,6 +49,7 @@ def test_register_creates_a_user_and_returns_a_token(no_such_user):
 
     doc = no_such_user.call_args.args[0]
     assert doc["email"] == "new@example.com", "email must be stored folded"
+    assert doc["name"] == "Ada Lovelace", "the name is stored as given, not folded"
     assert doc["role"] == "employer"
     assert "password" not in doc
     assert doc["hashed_password"] != "hunter2hunter2"
@@ -55,21 +57,43 @@ def test_register_creates_a_user_and_returns_a_token(no_such_user):
 
 def test_register_rejects_a_duplicate_email(existing_user):
     resp = client.post("/api/v1/auth/register",
-                       json={"email": "a@b.com", "password": "hunter2hunter2"})
+                       json={"name": "Ada", "email": "a@b.com", "password": "hunter2hunter2"})
     assert resp.status_code == 409
 
 
+def test_register_starts_the_account_anonymous(no_such_user):
+    """The funnel's safe state: a new account is a pseudonym until it earns otherwise."""
+    client.post("/api/v1/auth/register",
+                json={"name": "Ada", "email": "c@d.com", "password": "hunter2hunter2"})
+    assert no_such_user.call_args.args[0]["revealed"] is False
+
+
 def test_register_defaults_to_candidate(no_such_user):
-    client.post("/api/v1/auth/register", json={"email": "c@d.com", "password": "hunter2hunter2"})
+    client.post("/api/v1/auth/register",
+                json={"name": "Ada", "email": "c@d.com", "password": "hunter2hunter2"})
     assert no_such_user.call_args.args[0]["role"] == "candidate"
 
 
+def test_register_trims_the_name(no_such_user):
+    """Otherwise a padded name would sort and render as if it were something else."""
+    client.post("/api/v1/auth/register",
+                json={"name": "  Ada Lovelace  ", "email": "c@d.com",
+                      "password": "hunter2hunter2"})
+    assert no_such_user.call_args.args[0]["name"] == "Ada Lovelace"
+
+
 @pytest.mark.parametrize("payload", [
-    {"email": "not-an-email", "password": "hunter2hunter2"},
-    {"email": "a@b.com", "password": "short"},
-    {"email": "a@b.com", "password": "x" * 73},
-    {"email": "a@b.com", "password": "hunter2hunter2", "role": "admin"},
-    {"password": "hunter2hunter2"},
+    {"name": "Ada", "email": "not-an-email", "password": "hunter2hunter2"},
+    {"name": "Ada", "email": "a@b.com", "password": "short"},
+    {"name": "Ada", "email": "a@b.com", "password": "x" * 73},
+    {"name": "Ada", "email": "a@b.com", "password": "hunter2hunter2", "role": "admin"},
+    {"name": "Ada", "password": "hunter2hunter2"},
+    # A name is what the reveal has to show, so registering without a usable one
+    # is refused rather than accepted and papered over at display time.
+    {"email": "a@b.com", "password": "hunter2hunter2"},
+    {"name": "", "email": "a@b.com", "password": "hunter2hunter2"},
+    {"name": "   ", "email": "a@b.com", "password": "hunter2hunter2"},
+    {"name": "x" * 81, "email": "a@b.com", "password": "hunter2hunter2"},
 ])
 def test_register_validation(payload):
     assert client.post("/api/v1/auth/register", json=payload).status_code == 422

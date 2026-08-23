@@ -7,8 +7,8 @@ async function authenticate(path, body) {
   return data;
 }
 
-export function register(email, password, role = "candidate") {
-  return authenticate("/auth/register", { email, password, role });
+export function register(name, email, password, role = "candidate") {
+  return authenticate("/auth/register", { name, email, password, role });
 }
 
 export function login(email, password) {

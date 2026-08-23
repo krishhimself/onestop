@@ -11,7 +11,7 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.repositories import user_repository
 
 
-async def register_user(email: str, password: str, role: str) -> dict:
+async def register_user(email: str, password: str, role: str, name: str) -> dict:
     """Creates the account and returns a token, so signup does not need a second round trip."""
     normalised = email.strip().lower()
 
@@ -23,8 +23,14 @@ async def register_user(email: str, password: str, role: str) -> dict:
         {
             "_id": user_id,
             "email": normalised,
+            # Shown only once `revealed` flips; until then it never leaves this file's
+            # collection. See services/reputation_service.py.
+            "name": name.strip(),
             "hashed_password": hash_password(password),
             "role": role,
+            # Every account starts behind the pseudonym; reputation_service is the
+            # only thing that flips this, once the reveal threshold is cleared.
+            "revealed": False,
             "created_at": datetime.now(timezone.utc),
         }
     )

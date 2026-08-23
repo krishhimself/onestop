@@ -6,9 +6,9 @@ export default function RegisterPage({ onAuthed, onSwitch }) {
     <AuthForm
       title="Create an account"
       submitLabel="Register"
-      showRole
-      onSubmit={async ({ email, password, role }) => {
-        await register(email, password, role);
+      signup
+      onSubmit={async ({ name, email, password, role }) => {
+        await register(name, email, password, role);
         onAuthed();
       }}
       footer={
