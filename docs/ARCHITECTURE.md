@@ -49,6 +49,26 @@ POST /api/v1/quiz/generate
   ← 200 JSON
 ```
 
+## Request flow example - viewing a profile
+
+```
+GET /api/v1/profile/{user_id}
+  -> api/v1/endpoints/profile.py::get_profile()
+    -> services/reputation_service.py::get_public_profile()
+      -> repositories/user_repository.py::get_user_by_id()      (Mongo)
+      -> repositories/quiz_repository.py                        (Mongo)
+           ::has_graded_attempt_scoring_at_least()
+      -> repositories/user_repository.py::mark_revealed()       (Mongo, only on
+                                                                 the first reveal)
+    <- ProfileResponse
+  <- 200 JSON
+```
+
+Identity is dropped in the service, not in the UI: while `revealed` is False the
+response carries `"Anonymous Candidate"` and a null email, so an unrevealed name
+never reaches the browser at all. `features/profile/display.js` re-checks the flag
+as a second lock.
+
 ## Frontend structure
 
 ```
@@ -67,10 +87,14 @@ should ever import from a `features/` folder — dependencies point inward.
 
 ## What's next architecturally (not yet built)
 
-- `auth` module (backend) + `features/auth` (frontend) — needed before the
-  anonymous-first funnel can gate anything for real.
-- `services/scoring_service.py` — the unified reputation score
-  (quiz depth + interview rounds elsewhere). Reads from quiz + application
-  outcomes, writes to a `scores` collection via a new `score_repository.py`.
+- The real reputation score. `services/reputation_service.py` exists and owns the
+  anonymous-first funnel, but `meets_reveal_threshold()` is a placeholder: one
+  graded quiz at `REVEAL_MIN_SCORE` or better. The unified score (quiz depth +
+  interview rounds elsewhere) replaces the body of that one function — it reads
+  from quiz + application outcomes and writes to a `scores` collection via a new
+  `score_repository.py`. Nothing else in the funnel changes when it lands.
+- A real display name. `users.name` is documented and rendered but nothing
+  collects it yet, so a revealed profile currently falls back to showing the
+  email. Registration needs a name field before the reveal reads well.
 - `services/company_quiz_service.py` — same quiz engine, different prompt,
   gates job posting creation.

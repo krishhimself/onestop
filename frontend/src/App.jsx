@@ -1,5 +1,6 @@
 import { useState } from "react";
 import QuizPage from "./features/quiz/QuizPage";
+import ProfilePage from "./features/profile/ProfilePage";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
 import { isLoggedIn, logout } from "./features/auth/api";
@@ -9,6 +10,7 @@ export default function App() {
   // Seeded from storage so a reload does not log you out.
   const [authed, setAuthed] = useState(isLoggedIn);
   const [showRegister, setShowRegister] = useState(false);
+  const [tab, setTab] = useState("quiz");
 
   if (!authed) {
     const Page = showRegister ? RegisterPage : LoginPage;
@@ -21,9 +23,23 @@ export default function App() {
     );
   }
 
+  const onUnauthorized = () => setAuthed(false);
+
   return (
     <>
       <div className="topbar">
+        <button
+          className={`linkish${tab === "quiz" ? " current" : ""}`}
+          onClick={() => setTab("quiz")}
+        >
+          Quiz
+        </button>
+        <button
+          className={`linkish${tab === "profile" ? " current" : ""}`}
+          onClick={() => setTab("profile")}
+        >
+          Profile
+        </button>
         <button
           className="linkish"
           onClick={() => {
@@ -34,7 +50,13 @@ export default function App() {
           Log out
         </button>
       </div>
-      <QuizPage onUnauthorized={() => setAuthed(false)} />
+      {tab === "quiz" ? (
+        <QuizPage onUnauthorized={onUnauthorized} />
+      ) : (
+        // Re-fetched on every visit, so a reveal earned in the quiz tab shows up
+        // as soon as the candidate looks.
+        <ProfilePage onUnauthorized={onUnauthorized} />
+      )}
     </>
   );
 }

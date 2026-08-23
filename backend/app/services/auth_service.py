@@ -25,6 +25,9 @@ async def register_user(email: str, password: str, role: str) -> dict:
             "email": normalised,
             "hashed_password": hash_password(password),
             "role": role,
+            # Every account starts behind the pseudonym; reputation_service is the
+            # only thing that flips this, once the reveal threshold is cleared.
+            "revealed": False,
             "created_at": datetime.now(timezone.utc),
         }
     )

@@ -62,7 +62,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .question.locked { opacity: 0.65; }
 .question textarea:disabled { cursor: not-allowed; }
 
-.topbar { max-width: 720px; margin: 0 auto; padding: 16px 20px 0; text-align: right; }
+.topbar {
+  max-width: 720px; margin: 0 auto; padding: 16px 20px 0;
+  display: flex; justify-content: flex-end; gap: 18px;
+}
 .linkish {
   background: none; border: none; color: #5b8cff;
   padding: 0; font-weight: 600; cursor: pointer; text-decoration: underline;
@@ -75,3 +78,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   background: #171922; color: #e8e8ea; font-size: 14px;
 }
 .auth .switch { margin: 0; font-size: 14px; color: #9a9aa5; }
+
+.linkish.current { color: #e8e8ea; text-decoration: none; }
+
+.profile-card { margin-top: 24px; padding: 16px; background: #171922; border-radius: 10px; }
+.profile-card .s { margin: 0 0 8px 0; color: #9a9aa5; font-size: 14px; }
+.profile-card .s:last-child { margin-bottom: 0; }
+.reveal-state {
+  margin: 0 0 10px 0; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #7d8194;
+}
+.reveal-state.revealed { color: #5bd68c; }

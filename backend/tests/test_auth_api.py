@@ -59,6 +59,12 @@ def test_register_rejects_a_duplicate_email(existing_user):
     assert resp.status_code == 409
 
 
+def test_register_starts_the_account_anonymous(no_such_user):
+    """The funnel's safe state: a new account is a pseudonym until it earns otherwise."""
+    client.post("/api/v1/auth/register", json={"email": "c@d.com", "password": "hunter2hunter2"})
+    assert no_such_user.call_args.args[0]["revealed"] is False
+
+
 def test_register_defaults_to_candidate(no_such_user):
     client.post("/api/v1/auth/register", json={"email": "c@d.com", "password": "hunter2hunter2"})
     assert no_such_user.call_args.args[0]["role"] == "candidate"
