@@ -9,8 +9,9 @@ users collection:
   "email": str,            # stored lowercased; unique, see note below
   "hashed_password": str,  # bcrypt, never the plaintext
   "role": "candidate" | "employer",
-  "name": str | None,      # real display name; not collected at registration yet,
-                           # so it is absent on every account created so far
+  "name": str | None,      # real display name, collected at registration and
+                           # stripped of surrounding whitespace. None only on
+                           # accounts created before the field existed
   "revealed": bool,        # default False — see the anonymity note below
   "created_at": datetime (UTC),
 }

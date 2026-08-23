@@ -70,9 +70,9 @@ async def get_public_profile(user_id: str) -> dict:
 
     return {
         "user_id": user["_id"],
-        # `name` is not collected at registration yet, so it is None on every
-        # account so far. The profile view falls back to the email in that case;
-        # both are the candidate's to show once revealed.
+        # None only on accounts created before registration collected a name;
+        # the profile view falls back to the email for those. Both are the
+        # candidate's to show once revealed.
         "name": user.get("name"),
         "email": user.get("email"),
         "role": user.get("role", "candidate"),

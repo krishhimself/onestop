@@ -93,8 +93,5 @@ should ever import from a `features/` folder — dependencies point inward.
   interview rounds elsewhere) replaces the body of that one function — it reads
   from quiz + application outcomes and writes to a `scores` collection via a new
   `score_repository.py`. Nothing else in the funnel changes when it lands.
-- A real display name. `users.name` is documented and rendered but nothing
-  collects it yet, so a revealed profile currently falls back to showing the
-  email. Registration needs a name field before the reveal reads well.
 - `services/company_quiz_service.py` — same quiz engine, different prompt,
   gates job posting creation.

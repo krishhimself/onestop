@@ -8,7 +8,7 @@ export const ANONYMOUS_NAME = "Anonymous Candidate";
 
 export function displayName(profile) {
   if (!profile?.revealed) return ANONYMOUS_NAME;
-  // `name` is not collected at registration yet, so most revealed profiles fall
-  // through to the email — which is the candidate's to show once revealed.
+  // Accounts created before registration collected a name fall through to the
+  // email — which is the candidate's to show once revealed either way.
   return profile.name || profile.email || ANONYMOUS_NAME;
 }
