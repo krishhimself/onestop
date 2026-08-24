@@ -114,3 +114,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   letter-spacing: 0.06em; color: var(--text-muted);
 }
 .reveal-state.revealed { color: var(--success); }
+
+/* Company-side posting flow */
+.draft { display: flex; flex-direction: column; gap: 14px; margin: 24px 0; }
+.draft label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-muted); }
+.draft .hint { font-size: 12px; color: var(--text-subtle); }
+.draft button { align-self: flex-start; }
+
+.result .verdict {
+  margin-left: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  border-radius: 999px; padding: 3px 10px; vertical-align: middle; font-weight: 600;
+}
+.result .verdict.pass { color: var(--success); border: 1px solid rgba(91, 214, 140, 0.4); }
+.result .verdict.fail { color: var(--danger); border: 1px solid rgba(255, 163, 163, 0.4); }
+.result button { margin-top: 10px; }

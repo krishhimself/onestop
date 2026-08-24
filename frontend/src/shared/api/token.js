@@ -32,18 +32,29 @@ export function clearToken() {
   }
 }
 
-export function getUserId() {
-  // The `sub` claim, read straight off the token payload. Reading it here saves a
-  // round trip for "whose profile am I looking at by default" — it is not a
-  // security decision, and nothing here verifies the signature. Every claim that
-  // matters is re-checked by the backend against the signed token.
+function claim(name) {
   const token = getToken();
   if (!token) return null;
   try {
     const payload = token.split(".")[1];
     const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(json).sub ?? null;
+    return JSON.parse(json)[name] ?? null;
   } catch {
-    return null; // malformed token — treat it as no session rather than crashing
+    return null; // malformed token - treat it as no session rather than crashing
   }
+}
+
+export function getUserId() {
+  // The `sub` claim, read straight off the token payload. Reading it here saves a
+  // round trip for "whose profile am I looking at by default" — it is not a
+  // security decision, and nothing here verifies the signature. Every claim that
+  // matters is re-checked by the backend against the signed token.
+  return claim("sub");
+}
+
+export function getRole() {
+  // Decides which tabs to render, nothing more. The backend re-checks the role
+  // against the signed token on every employer-only route, so editing this in a
+  // console buys a form that the API refuses.
+  return claim("role");
 }

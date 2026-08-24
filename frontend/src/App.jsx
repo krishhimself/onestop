@@ -1,16 +1,20 @@
 import { useState } from "react";
 import QuizPage from "./features/quiz/QuizPage";
 import ProfilePage from "./features/profile/ProfilePage";
+import PostJobPage from "./features/jobs/PostJobPage";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
 import { isLoggedIn, logout } from "./features/auth/api";
+import { getRole } from "./shared/api/token";
 
-// Swap for a router (react-router) once the jobs/community pages exist.
+// Swap for a router (react-router) once the community pages exist.
 export default function App() {
   // Seeded from storage so a reload does not log you out.
   const [authed, setAuthed] = useState(isLoggedIn);
   const [showRegister, setShowRegister] = useState(false);
-  const [tab, setTab] = useState("quiz");
+  // Employers land on the posting flow; candidates on the repo quiz. Both are the
+  // thing that account type came here to do.
+  const [tab, setTab] = useState(() => (getRole() === "employer" ? "post" : "quiz"));
 
   if (!authed) {
     const Page = showRegister ? RegisterPage : LoginPage;
@@ -18,28 +22,39 @@ export default function App() {
       <div className="container">
         <h1>OneStop</h1>
         <p className="tagline">Log in to take a repo quiz.</p>
-        <Page onAuthed={() => setAuthed(true)} onSwitch={() => setShowRegister((v) => !v)} />
+        <Page
+          onAuthed={() => {
+            setTab(getRole() === "employer" ? "post" : "quiz");
+            setAuthed(true);
+          }}
+          onSwitch={() => setShowRegister((v) => !v)}
+        />
       </div>
     );
   }
 
   const onUnauthorized = () => setAuthed(false);
 
+  // Hiding the tab is a convenience, not the gate: every company-quiz route is
+  // employer-only on the backend, checked against the signed token.
+  const tabs = [
+    ...(getRole() === "employer" ? [["post", "Post a Job"]] : []),
+    ["quiz", "Quiz"],
+    ["profile", "Profile"],
+  ];
+
   return (
     <>
       <div className="topbar">
-        <button
-          className={`linkish${tab === "quiz" ? " current" : ""}`}
-          onClick={() => setTab("quiz")}
-        >
-          Quiz
-        </button>
-        <button
-          className={`linkish${tab === "profile" ? " current" : ""}`}
-          onClick={() => setTab("profile")}
-        >
-          Profile
-        </button>
+        {tabs.map(([id, label]) => (
+          <button
+            key={id}
+            className={`linkish${tab === id ? " current" : ""}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
         <button
           className="linkish"
           onClick={() => {
@@ -50,13 +65,12 @@ export default function App() {
           Log out
         </button>
       </div>
-      {tab === "quiz" ? (
-        <QuizPage onUnauthorized={onUnauthorized} />
-      ) : (
-        // Re-fetched on every visit, so a reveal earned in the quiz tab shows up
-        // as soon as the candidate looks.
-        <ProfilePage onUnauthorized={onUnauthorized} />
-      )}
+
+      {tab === "post" && <PostJobPage onUnauthorized={onUnauthorized} />}
+      {tab === "quiz" && <QuizPage onUnauthorized={onUnauthorized} />}
+      {/* Re-fetched on every visit, so a reveal earned in the quiz tab shows up as
+          soon as the candidate looks. */}
+      {tab === "profile" && <ProfilePage onUnauthorized={onUnauthorized} />}
     </>
   );
 }

@@ -104,14 +104,51 @@ many candidates before it can be calibrated, which does not exist yet. The
 complexity tier is a deliberate stopgap — a second, independent signal — not a
 substitute for it.
 
+## The other side: the posting quiz
+
+A resume is a claim about a person; a job posting is a claim about a role. Both are
+cheap to generate and both are usually written by someone other than the person who
+will live with them. So the company side runs the same interrogation in reverse.
+
+1. An employer writes the posting — company, role, stack, what the job actually is.
+2. The same engine generates questions grounded in that posting, in four categories:
+   - **role** — what this person does day to day, and what "doing well" looks like at 90 days
+   - **stack** — which of the listed technologies the hire actually touches, and why each is there
+   - **team** — who they work with, who decides what gets built
+   - **reality** — the constraints, the legacy, what makes the role genuinely hard
+3. Same 75-second clock, same silent paste recording, same single adaptive follow-up
+   before anything is graded.
+4. A posting is published **only** if the answers clear 70/100. Nothing else in the
+   codebase creates a job: `job_service.post_job()` has exactly one caller, and it is
+   the grading step.
+
+The posting that goes live is the draft the questions were generated from, held
+server-side for the whole round — so a company cannot answer honestly about the real
+role and then publish a rosier version of it.
+
+What this catches is a posting nobody behind it can account for. Asked about a
+posting listing Kafka and Kubernetes next to a description that only mentions
+FastAPI and Mongo, the first question generated back was where Kafka actually sits
+in that flow — the kind of question a template cannot survive and the engineer who
+owns the pipeline answers without thinking. A round answered with specifics and a
+defended follow-up scored 98/100 and published; a round whose answers repeated
+themselves and whose follow-up went undefended scored 52 and published nothing.
+
+**Same seam as the candidate side.** The clock and the paste detector are
+client-side, and the pass mark is a single model judgement. What holds is the
+follow-up: it is generated from the employer's own wording at response time, so it
+cannot be prepared in advance. Grading also cannot be replayed — an attempt is
+graded once, keeps the job id it produced, and a retried call returns that instead of
+publishing again.
+
 ## Status
 
-**Built:** repo quiz end to end (generate → answer → grade), minimal job
-posting/application CRUD.
+**Built:** repo quiz end to end (generate → answer → grade), the company-side
+quiz gating job postings, anonymous-first candidate profiles, job
+listing/application CRUD.
 
 **Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
-slot in): company-side quiz gating job postings, anonymous-first candidate
-profiles, unified reputation score, bug-hunt mode, community threads.
+slot in): unified reputation score, bug-hunt mode, community threads.
 
 ## Running locally
 

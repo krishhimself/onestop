@@ -69,6 +69,44 @@ response carries `"Anonymous Candidate"` and a null email, so an unrevealed name
 never reaches the browser at all. `features/profile/display.js` re-checks the flag
 as a second lock.
 
+## Request flow example - posting a job
+
+A posting is the output of a defended quiz, not an input to one. There is no
+ungated create route: `job_service.post_job()` has exactly one caller.
+
+```
+POST /api/v1/jobs/company-quiz/generate      (employer token required)
+  -> api/v1/endpoints/jobs.py::generate_company_quiz()
+    -> services/company_quiz_service.py::create_quiz()
+      -> integrations/gemini_client.py::generate_company_quiz_questions()  (Gemini)
+      -> repositories/company_quiz_repository.py::save_attempt()  (Mongo, holds the draft)
+
+POST /api/v1/jobs/company-quiz/submit
+  -> services/company_quiz_service.py::start_followup()
+    -> services/quiz_service.py::pick_suspect_answer()          (same ranking as the repo quiz)
+    -> integrations/gemini_client.py::generate_followup_question(framing=COMPANY_FRAMING)
+
+POST /api/v1/jobs/company-quiz/followup
+  -> services/company_quiz_service.py::grade_and_post()
+    -> integrations/gemini_client.py::grade_company_answers()   (Gemini)
+    -> services/job_service.py::post_job()                      (Mongo, ONLY on a pass,
+                                                                 from the stored draft)
+    -> repositories/company_quiz_repository.py::update_result()
+  <- CompanyQuizResultResponse {score, passed, job_id}
+```
+
+Two properties the layering exists to protect:
+
+* The posting that goes live is the draft the questions were generated from, so a
+  company cannot defend an honest draft and publish a different one.
+* `status: "graded"` is terminal and carries the job_id it produced, so a replayed
+  final call returns the stored outcome instead of minting a second posting.
+
+Company attempts live in their own collection rather than in `quiz_attempts` with a
+discriminator: `quiz_repository.has_graded_attempt_scoring_at_least()` backs the
+candidate reveal threshold and matches any graded attempt by user, so a shared
+collection would let an employer quiz count as candidate comprehension.
+
 ## Frontend structure
 
 ```
@@ -93,5 +131,5 @@ should ever import from a `features/` folder — dependencies point inward.
   interview rounds elsewhere) replaces the body of that one function — it reads
   from quiz + application outcomes and writes to a `scores` collection via a new
   `score_repository.py`. Nothing else in the funnel changes when it lands.
-- `services/company_quiz_service.py` — same quiz engine, different prompt,
-  gates job posting creation.
+- Company-side bug-hunt and community threads, per the README status list.
+  Nothing about them is designed yet.
