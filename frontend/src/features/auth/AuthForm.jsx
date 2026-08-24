@@ -9,6 +9,13 @@ import { useState } from "react";
  * name field arrived and made it three things at once; naming it for the mode
  * rather than for one of the fields keeps the next addition from repeating that.
  */
+// [value sent as `role`, label, what picking it means]. The values must match
+// schemas/auth.py's Role literal — anything else is a 422.
+const ROLES = [
+  ["candidate", "Candidate", "Take repo quizzes and build a profile."],
+  ["employer", "Employer", "Post roles — after answering for them."],
+];
+
 export default function AuthForm({ title, submitLabel, onSubmit, signup, footer }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -74,14 +81,29 @@ export default function AuthForm({ title, submitLabel, onSubmit, signup, footer 
         />
       </label>
 
+      {/* Radios rather than a dropdown: this choice decides which half of the
+          product you land in, so both options should be visible without opening
+          anything. The value is still only a hint — every employer-only route
+          re-checks the role against the signed token. */}
       {signup && (
-        <label>
-          I am a
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="candidate">Candidate</option>
-            <option value="employer">Employer</option>
-          </select>
-        </label>
+        <fieldset className="role-choice">
+          <legend>I am a</legend>
+          {ROLES.map(([value, label, hint]) => (
+            <label key={value} className={role === value ? "chosen" : ""}>
+              <input
+                type="radio"
+                name="role"
+                value={value}
+                checked={role === value}
+                onChange={() => setRole(value)}
+              />
+              <span>
+                {label}
+                <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
       )}
 
       {error && <p className="error">{error}</p>}

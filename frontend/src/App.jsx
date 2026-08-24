@@ -35,11 +35,15 @@ export default function App() {
 
   const onUnauthorized = () => setAuthed(false);
 
-  // Hiding the tab is a convenience, not the gate: every company-quiz route is
+  // One flow per account type: an employer answers for postings, a candidate
+  // answers for repos. Neither is offered the other's, because neither number
+  // means anything on the wrong side of the market.
+  //
+  // Hiding a tab is a convenience, not the gate: every company-quiz route is
   // employer-only on the backend, checked against the signed token.
+  const employer = getRole() === "employer";
   const tabs = [
-    ...(getRole() === "employer" ? [["post", "Post a Job"]] : []),
-    ["quiz", "Quiz"],
+    employer ? ["post", "Post a Job"] : ["quiz", "Quiz"],
     ["profile", "Profile"],
   ];
 

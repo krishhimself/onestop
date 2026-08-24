@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token, decode_access_token, hash_password
 from app.main import app
 from app.services import auth_service, quiz_service
 
@@ -66,6 +66,21 @@ def test_register_starts_the_account_anonymous(no_such_user):
     client.post("/api/v1/auth/register",
                 json={"name": "Ada", "email": "c@d.com", "password": "hunter2hunter2"})
     assert no_such_user.call_args.args[0]["revealed"] is False
+
+
+def test_the_issued_token_carries_the_role_that_was_chosen(no_such_user):
+    """
+    The registration form is where an employer account comes from, and the
+    employer-only routes read the role off the token rather than the body. If the
+    role were dropped between the two, signing up as an employer would produce an
+    account that cannot reach the company quiz.
+    """
+    body = client.post("/api/v1/auth/register",
+                       json={"name": "Ada", "email": "e@f.com",
+                             "password": "hunter2hunter2", "role": "employer"}).json()
+
+    assert decode_access_token(body["access_token"])["role"] == "employer"
+    assert no_such_user.call_args.args[0]["role"] == "employer"
 
 
 def test_register_defaults_to_candidate(no_such_user):
