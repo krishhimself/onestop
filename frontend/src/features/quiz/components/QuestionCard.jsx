@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createInputTracker } from "../pasteDetect";
+import { ClockIcon, FileCodeIcon } from "../../../shared/components/Icons";
 
 /**
  * One timed question.
@@ -22,8 +23,11 @@ export default function QuestionCard({
   onTick,
   onInputSignal,
   timeLimit = 75,
+  questionNumber,
+  totalQuestions,
 }) {
   const [left, setLeft] = useState(timeLimit);
+  const [isFocused, setIsFocused] = useState(false);
   const tracker = useRef(null);
   if (tracker.current === null) tracker.current = createInputTracker();
   const cbs = useRef({ onExpire, onTick });
@@ -58,29 +62,65 @@ export default function QuestionCard({
   }
 
   const locked = left === 0;
+  const isUrgent = left <= 10 && !locked;
   const mins = Math.floor(left / 60);
   const secs = String(left % 60).padStart(2, "0");
+  const charCount = (answer || "").length;
 
   return (
-    <div className={`question${locked ? " locked" : ""}`}>
-      <p>
-        <strong>{question.question}</strong>
-        {question.file_reference && <span className="ref"> ({question.file_reference})</span>}
-      </p>
+    <div className={`question-card ${locked ? "locked" : ""} ${isFocused && !locked ? "active-focus" : ""}`}>
+      {/* Top Meta Bar */}
+      <div className="question-top-row">
+        <div className="question-meta-group">
+          {questionNumber && (
+            <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--accent-text)" }}>
+              Question {questionNumber} of {totalQuestions || 4}
+            </span>
+          )}
 
-      <div className="meta">
-        {question.category && <span className="cat">{question.category}</span>}
-        <span className={`timer${left <= 10 ? " urgent" : ""}`}>
-          {locked ? "time up" : `${mins}:${secs}`}
-        </span>
+          {question.category && (
+            <span className="badge badge-cream">
+              {question.category}
+            </span>
+          )}
+
+          {question.file_reference && (
+            <span className="file-ref-pill" title={question.file_reference}>
+              <FileCodeIcon size={13} />
+              <span>{question.file_reference}</span>
+            </span>
+          )}
+        </div>
+
+        {/* High-visibility Countdown Timer */}
+        <div className={`timer-pill ${isUrgent ? "urgent" : ""}`}>
+          <ClockIcon size={14} />
+          <span>{locked ? "Locked (Time Up)" : `${mins}:${secs}`}</span>
+        </div>
       </div>
 
-      <textarea
-        value={answer || ""}
-        onChange={handleChange}
-        disabled={locked}
-        placeholder={locked ? "Locked — time expired." : "Your answer..."}
-      />
+      {/* Question Prompt */}
+      <h3 className="question-prompt">
+        {question.question}
+      </h3>
+
+      {/* Answer Area */}
+      <div className="question-textarea-wrap">
+        <textarea
+          className="question-textarea"
+          value={answer || ""}
+          onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          disabled={locked}
+          placeholder={
+            locked
+              ? "Time expired — your answer has been locked and recorded."
+              : "Explain your reasoning in your own words. Focus on how the logic works and why design choices were made..."
+          }
+        />
+        <span className="char-counter">{charCount} characters</span>
+      </div>
     </div>
   );
 }

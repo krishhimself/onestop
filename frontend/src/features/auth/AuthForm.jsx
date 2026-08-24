@@ -1,14 +1,6 @@
 import { useState } from "react";
+import { BrandLogoIcon, CheckCircleIcon, ShieldLockIcon } from "../../shared/components/Icons";
 
-/**
- * Shared form body for login and register.
- *
- * Deliberately plain — this gates the quiz flow, it is not a UI milestone.
- *
- * `signup` is the one switch between the two modes. It was `showRole` until the
- * name field arrived and made it three things at once; naming it for the mode
- * rather than for one of the fields keeps the next addition from repeating that.
- */
 export default function AuthForm({ title, submitLabel, onSubmit, signup, footer }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,77 +14,165 @@ export default function AuthForm({ title, submitLabel, onSubmit, signup, footer 
     setBusy(true);
     setError("");
     try {
-      await onSubmit({ name: name.trim(), email, password, role });
+      await onSubmit({ name: name.trim(), email: email.trim(), password, role });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Authentication failed. Please check your credentials.");
     } finally {
       setBusy(false);
     }
   }
 
+  const isFormValid = email && password && (!signup || name.trim().length >= 1);
+
   return (
-    <form className="auth" onSubmit={handleSubmit}>
-      <h2>{title}</h2>
-
-      {signup && (
-        <label>
-          Name
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-            maxLength={80}
-            required
-          />
-          <span className="hint">
-            Nobody sees this until a quiz score reveals your profile.
+    <div className="auth-page-container">
+      {/* Left Hero Banner */}
+      <div className="auth-hero-banner">
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <div className="brand-logo-badge" style={{ width: "30px", height: "30px" }}>
+            <BrandLogoIcon size={18} />
+          </div>
+          <span style={{ fontSize: "15px", fontWeight: "700", color: "var(--navy)" }}>
+            OneStop
           </span>
-        </label>
-      )}
+        </div>
 
-      <label>
-        Email
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          required
-        />
-      </label>
+        <h1 className="auth-hero-title">
+          Verify comprehension, <br />
+          <span style={{ color: "var(--accent)" }}>not credentials.</span>
+        </h1>
 
-      <label>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={signup ? "new-password" : "current-password"}
-          minLength={signup ? 8 : undefined}
-          required
-        />
-      </label>
+        <p className="auth-hero-desc">
+          Claims are cheap in the AI era. OneStop evaluates real engineering understanding through live repo quizzes, anti-gaming clocks, and adaptive defences.
+        </p>
 
-      {signup && (
-        <label>
-          I am a
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="candidate">Candidate</option>
-            <option value="employer">Employer</option>
-          </select>
-        </label>
-      )}
+        <div className="auth-hero-features">
+          <div className="auth-feature-row">
+            <CheckCircleIcon size={16} style={{ color: "var(--success)", flexShrink: 0, marginTop: "2px" }} />
+            <span><strong>Anonymous-first profiles:</strong> Your code earns your introduction before your identity is revealed.</span>
+          </div>
 
-      {error && <p className="error">{error}</p>}
+          <div className="auth-feature-row">
+            <ShieldLockIcon size={16} style={{ color: "var(--accent)", flexShrink: 0, marginTop: "2px" }} />
+            <span><strong>Adaptive defense rounds:</strong> An AI jury questions your exact reasoning under live clocks.</span>
+          </div>
 
-      {/* A name of spaces would pass `required`, so the trimmed value is what gates
-          the button — same rule the backend enforces. */}
-      <button type="submit" disabled={busy || !email || !password || (signup && !name.trim())}>
-        {busy ? "Working..." : submitLabel}
-      </button>
+          <div className="auth-feature-row">
+            <CheckCircleIcon size={16} style={{ color: "var(--navy)", flexShrink: 0, marginTop: "2px" }} />
+            <span><strong>Gated job postings:</strong> Companies prove role realities before hiring candidates.</span>
+          </div>
+        </div>
+      </div>
 
-      {footer}
-    </form>
+      {/* Right Auth Card */}
+      <div className="auth-card-wrap">
+        <div style={{ marginBottom: "18px" }}>
+          <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>{title}</h2>
+          <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+            {signup ? "Create your candidate or employer account." : "Sign in to access your dashboard."}
+          </p>
+        </div>
+
+        {error && (
+          <div className="alert alert-error">
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {signup && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="auth-name">
+                Full Name
+              </label>
+              <input
+                id="auth-name"
+                type="text"
+                className="input-field"
+                placeholder="Ada Lovelace"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                maxLength={80}
+                required
+              />
+              <span className="form-hint">
+                Kept anonymous until a defended quiz score clears the 70+ reveal bar.
+              </span>
+            </div>
+          )}
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="auth-email">
+              Email Address
+            </label>
+            <input
+              id="auth-email"
+              type="email"
+              className="input-field"
+              placeholder="developer@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="auth-password">
+              Password
+            </label>
+            <input
+              id="auth-password"
+              type="password"
+              className="input-field"
+              placeholder={signup ? "Minimum 8 characters" : "Enter password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={signup ? "new-password" : "current-password"}
+              minLength={signup ? 8 : undefined}
+              required
+            />
+          </div>
+
+          {signup && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="auth-role">
+                Account Type
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
+                <button
+                  type="button"
+                  className={`btn ${role === "candidate" ? "btn-primary" : "btn-secondary"}`}
+                  onClick={() => setRole("candidate")}
+                  style={{ width: "100%", justifyContent: "center" }}
+                >
+                  Candidate
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${role === "employer" ? "btn-primary" : "btn-secondary"}`}
+                  onClick={() => setRole("employer")}
+                  style={{ width: "100%", justifyContent: "center" }}
+                >
+                  Employer
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg"
+            disabled={busy || !isFormValid}
+            style={{ width: "100%", marginTop: "6px" }}
+          >
+            {busy ? "Authenticating..." : submitLabel}
+          </button>
+
+          {footer}
+        </form>
+      </div>
+    </div>
   );
 }

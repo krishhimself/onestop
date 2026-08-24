@@ -33,16 +33,22 @@ export function clearToken() {
 }
 
 export function getUserId() {
-  // The `sub` claim, read straight off the token payload. Reading it here saves a
-  // round trip for "whose profile am I looking at by default" — it is not a
-  // security decision, and nothing here verifies the signature. Every claim that
-  // matters is re-checked by the backend against the signed token.
+  const payload = getUserPayload();
+  return payload?.sub ?? null;
+}
+
+export function getUserRole() {
+  const payload = getUserPayload();
+  return payload?.role ?? "candidate";
+}
+
+export function getUserPayload() {
   const token = getToken();
   if (!token) return null;
   try {
     const payload = token.split(".")[1];
     const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(json).sub ?? null;
+    return JSON.parse(json);
   } catch {
     return null; // malformed token — treat it as no session rather than crashing
   }
