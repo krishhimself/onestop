@@ -7,7 +7,7 @@ import { getUserId } from "../../shared/api/token";
 // clears the reveal threshold, at which point the backend latches them open and
 // this page starts showing who they are. The reveal is evaluated server-side on
 // every read, so simply revisiting this page after passing is enough.
-export default function ProfilePage({ userId, onUnauthorized }) {
+export default function ProfilePage({ userId, onUnauthorized, onViewReputation }) {
   const subject = userId ?? getUserId();
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
@@ -63,6 +63,17 @@ export default function ProfilePage({ userId, onUnauthorized }) {
               70 or better on a repo quiz and your identity is revealed here.
             </p>
           </>
+        )}
+
+        {/* The reveal is one thing this profile says about a candidate; the
+            reputation breakdown is the rest of it, and it lives on its own page
+            rather than being summarised into a number here. */}
+        {onViewReputation && (
+          <p className="s">
+            <button type="button" className="linkish" onClick={onViewReputation}>
+              View reputation breakdown
+            </button>
+          </p>
         )}
       </div>
     </div>

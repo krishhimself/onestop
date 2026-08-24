@@ -107,6 +107,29 @@ discriminator: `quiz_repository.has_graded_attempt_scoring_at_least()` backs the
 candidate reveal threshold and matches any graded attempt by user, so a shared
 collection would let an employer quiz count as candidate comprehension.
 
+## Request flow example - the reputation score
+
+```
+GET /api/v1/users/{user_id}/reputation
+  -> api/v1/endpoints/reputation.py::get_reputation()
+    -> services/reputation_service.py::compute_reputation()
+      -> repositories/user_repository.py::get_user_by_id()          (Mongo, 404s if absent)
+      -> repositories/quiz_repository.py::graded_scores_for_user()  (Mongo)
+      -> repositories/job_repository.py                             (Mongo)
+           ::count_applications_with_status()
+    <- ReputationResponse {overall, comprehension, quiz_count, rounds_reached}
+  <- 200 JSON
+```
+
+The components are part of the response rather than an expansion of it. One
+blended figure gets read as a measure of engineering ability, and it is not one:
+a 92 average across one quiz and a 92 across six are different claims, and only
+`quiz_count` says so. `features/reputation/ReputationPage.jsx` renders them in a
+single return for the same reason `ScoreResult` does.
+
+Which statuses count as a round reached is the service's decision, not the
+repository's — `count_applications_with_status()` only counts what it is handed.
+
 ## Frontend structure
 
 ```
@@ -125,11 +148,16 @@ should ever import from a `features/` folder — dependencies point inward.
 
 ## What's next architecturally (not yet built)
 
-- The real reputation score. `services/reputation_service.py` exists and owns the
-  anonymous-first funnel, but `meets_reveal_threshold()` is a placeholder: one
-  graded quiz at `REVEAL_MIN_SCORE` or better. The unified score (quiz depth +
-  interview rounds elsewhere) replaces the body of that one function — it reads
-  from quiz + application outcomes and writes to a `scores` collection via a new
-  `score_repository.py`. Nothing else in the funnel changes when it lands.
+- Wiring the reputation score into the reveal. `compute_reputation()` now exists
+  and combines quiz depth with round history, but `meets_reveal_threshold()` is
+  still its own placeholder: one graded quiz at `REVEAL_MIN_SCORE` or better. The
+  two are deliberately not connected yet — the reveal is a one-way latch on a
+  candidate's identity, and moving it onto a score whose weights are still
+  guesses would latch accounts open on a formula nobody has calibrated. When it
+  lands it replaces the body of that one function; nothing else in the funnel
+  changes.
+- Difficulty-calibrated scoring, per the README. `comprehension` is a flat mean
+  of defended scores, so six trivial repos average the same as six hard ones.
+  That needs answer data across many candidates before it can be calibrated.
 - Company-side bug-hunt and community threads, per the README status list.
   Nothing about them is designed yet.

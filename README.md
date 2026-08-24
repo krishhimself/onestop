@@ -144,11 +144,13 @@ publishing again.
 ## Status
 
 **Built:** repo quiz end to end (generate → answer → grade), the company-side
-quiz gating job postings, anonymous-first candidate profiles, job
+quiz gating job postings, anonymous-first candidate profiles, the reputation
+score (quiz depth + round history, shown as a breakdown), job
 listing/application CRUD.
 
 **Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
-slot in): unified reputation score, bug-hunt mode, community threads.
+slot in): reputation feeding the reveal threshold, difficulty-calibrated
+scoring, bug-hunt mode, community threads.
 
 ## Running locally
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import QuizPage from "./features/quiz/QuizPage";
 import ProfilePage from "./features/profile/ProfilePage";
+import ReputationPage from "./features/reputation/ReputationPage";
 import PostJobPage from "./features/jobs/PostJobPage";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -45,6 +46,9 @@ export default function App() {
   const tabs = [
     employer ? ["post", "Post a Job"] : ["quiz", "Quiz"],
     ["profile", "Profile"],
+    // Reputation is quiz depth plus what happened when you applied, so it is a
+    // candidate instrument; an employer looking at their own would read zeros.
+    ...(employer ? [] : [["reputation", "Reputation"]]),
   ];
 
   return (
@@ -74,7 +78,13 @@ export default function App() {
       {tab === "quiz" && <QuizPage onUnauthorized={onUnauthorized} />}
       {/* Re-fetched on every visit, so a reveal earned in the quiz tab shows up as
           soon as the candidate looks. */}
-      {tab === "profile" && <ProfilePage onUnauthorized={onUnauthorized} />}
+      {tab === "profile" && (
+        <ProfilePage
+          onUnauthorized={onUnauthorized}
+          onViewReputation={employer ? undefined : () => setTab("reputation")}
+        />
+      )}
+      {tab === "reputation" && <ReputationPage onUnauthorized={onUnauthorized} />}
     </>
   );
 }

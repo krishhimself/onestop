@@ -18,7 +18,7 @@ Identity is dropped here, in the service, rather than hidden in the UI. An
 unrevealed profile has no name and no email anywhere in the response, so there is
 nothing for a curious viewer to read out of the network tab.
 """
-from app.repositories import quiz_repository, user_repository
+from app.repositories import job_repository, quiz_repository, user_repository
 
 ANONYMOUS_NAME = "Anonymous Candidate"
 
@@ -77,4 +77,61 @@ async def get_public_profile(user_id: str) -> dict:
         "email": user.get("email"),
         "role": user.get("role", "candidate"),
         "revealed": True,
+    }
+
+
+# --- the reputation score --------------------------------------------------
+#
+# Two components, deliberately kept visible next to each other rather than
+# blended away. Comprehension is what the platform actually verifies, so it
+# carries most of the weight; rounds reached is corroboration from outside this
+# system, which is worth something precisely because we did not generate it.
+COMPREHENSION_WEIGHT = 0.75
+ROUNDS_WEIGHT = 0.25
+
+# Rounds saturate: getting through four of them says a great deal more than
+# getting through zero, and the fortieth says almost nothing the fourth did not.
+# Without a ceiling the score would reward volume of applications.
+ROUNDS_FOR_FULL_CREDIT = 4
+
+# An application that moved past the pile. `applied` is the only status that means
+# nothing happened; the rest all imply a human looked. `rejected` is counted on
+# purpose and is the arguable one - status is a single field that moves, so a
+# rejection after three rounds and a rejection at first screening are stored
+# identically, and refusing to count it would erase the former to avoid crediting
+# the latter. Separate per-round tracking is what actually fixes this.
+ROUND_STATUSES = ("reviewed", "rejected", "accepted")
+
+
+async def compute_reputation(user_id: str) -> dict:
+    """
+    The unified score, as a breakdown rather than a number.
+
+    Every caller gets the components alongside the total for the same reason
+    ScoreResult never renders a bare quiz score: one blended figure invites being
+    read as a measure of engineering ability, which it is not. A candidate with a
+    92 average across one quiz and one with 92 across six are not the same
+    candidate, and the payload has to make that visible.
+
+    A user with no history is not an error - it is a new account, and it scores
+    zero across the board. Raises LookupError for an unknown user; the endpoint
+    turns that into a 404.
+    """
+    if not await user_repository.get_user_by_id(user_id):
+        raise LookupError("user_not_found")
+
+    scores = await quiz_repository.graded_scores_for_user(user_id)
+    comprehension = round(sum(scores) / len(scores)) if scores else 0
+
+    rounds_reached = await job_repository.count_applications_with_status(
+        user_id, ROUND_STATUSES
+    )
+    rounds_component = min(rounds_reached / ROUNDS_FOR_FULL_CREDIT, 1.0) * 100
+
+    return {
+        "overall": round(comprehension * COMPREHENSION_WEIGHT
+                         + rounds_component * ROUNDS_WEIGHT),
+        "comprehension": comprehension,
+        "rounds_reached": rounds_reached,
+        "quiz_count": len(scores),
     }
