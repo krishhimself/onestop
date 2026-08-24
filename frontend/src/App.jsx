@@ -2,6 +2,7 @@ import { useState } from "react";
 import QuizPage from "./features/quiz/QuizPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReputationPage from "./features/reputation/ReputationPage";
+import CommunityPage from "./features/community/CommunityPage";
 import PostJobPage from "./features/jobs/PostJobPage";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
@@ -49,6 +50,8 @@ export default function App() {
     // Reputation is quiz depth plus what happened when you applied, so it is a
     // candidate instrument; an employer looking at their own would read zeros.
     ...(employer ? [] : [["reputation", "Reputation"]]),
+    // Shared ground: the feed is the one surface both sides of the market read.
+    ["community", "Community"],
   ];
 
   return (
@@ -85,6 +88,7 @@ export default function App() {
         />
       )}
       {tab === "reputation" && <ReputationPage onUnauthorized={onUnauthorized} />}
+      {tab === "community" && <CommunityPage onUnauthorized={onUnauthorized} />}
     </>
   );
 }

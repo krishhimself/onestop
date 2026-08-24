@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { getProfile } from "./api";
 import { displayName } from "./display";
 import { getUserId } from "../../shared/api/token";
+// Connecting is a community action performed from a profile, so the call lives
+// with the rest of the community API rather than being duplicated here.
+import { connectTo } from "../community/api";
 
 // Anonymous-first: a candidate is a pseudonym here until a defended quiz score
 // clears the reveal threshold, at which point the backend latches them open and
@@ -12,6 +15,24 @@ export default function ProfilePage({ userId, onUnauthorized, onViewReputation }
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // Connections are instant and mutual, so this has two states rather than
+  // three: not connected, and connected. There is no pending.
+  const [connection, setConnection] = useState(null);
+
+  // Only when looking at somebody else — connecting to yourself is a 400.
+  const viewingSomeoneElse = Boolean(subject) && subject !== getUserId();
+
+  async function handleConnect() {
+    setConnection({ busy: true });
+    try {
+      const result = await connectTo(subject);
+      setConnection({ done: true, created: result.created });
+    } catch (e) {
+      if (e.status === 401) return onUnauthorized?.();
+      setConnection(null);
+      setError(e.message);
+    }
+  }
 
   useEffect(() => {
     let live = true;
@@ -63,6 +84,20 @@ export default function ProfilePage({ userId, onUnauthorized, onViewReputation }
               70 or better on a repo quiz and your identity is revealed here.
             </p>
           </>
+        )}
+
+        {viewingSomeoneElse && (
+          <p className="s">
+            {connection?.done ? (
+              <span className="reveal-state revealed">
+                {connection.created ? "Connected" : "Already connected"}
+              </span>
+            ) : (
+              <button type="button" onClick={handleConnect} disabled={connection?.busy}>
+                {connection?.busy ? "Connecting..." : "Connect"}
+              </button>
+            )}
+          </p>
         )}
 
         {/* The reveal is one thing this profile says about a candidate; the

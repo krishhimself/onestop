@@ -160,3 +160,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .stat-hint { margin: 8px 0 0 0; font-size: 12px; color: var(--text-subtle); }
 
 .profile-card .linkish { font-size: 14px; }
+
+/* Community feed. Reuses the feedback-item card; the only addition is letting a
+   post keep the line breaks its author typed. */
+.post-text { white-space: pre-wrap; }

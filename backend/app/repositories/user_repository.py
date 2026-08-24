@@ -49,3 +49,21 @@ async def mark_revealed(user_id: str) -> None:
     pseudonym, so there is no un-reveal counterpart to this.
     """
     await collection.update_one({"_id": user_id}, {"$set": {"revealed": True}})
+
+
+async def get_users_by_ids(user_ids: list[str]) -> dict[str, dict]:
+    """
+    Look up several users at once, keyed by id.
+
+    One query instead of one per row: the feed and the connections list both need
+    to resolve a page of authors, and doing that in a loop is how a list view
+    starts costing twenty round trips. Projected down to the display fields —
+    nothing here should be pulling password material into a list view.
+    """
+    ids = list(user_ids)
+    if not ids:
+        return {}
+    docs = await collection.find(
+        {"_id": {"$in": ids}}, {"name": 1, "revealed": 1, "role": 1}
+    ).to_list(len(ids))
+    return {doc["_id"]: _with_defaults(doc) for doc in docs}

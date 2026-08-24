@@ -145,12 +145,29 @@ publishing again.
 
 **Built:** repo quiz end to end (generate → answer → grade), the company-side
 quiz gating job postings, anonymous-first candidate profiles, the reputation
-score (quiz depth + round history, shown as a breakdown), job
-listing/application CRUD.
+score (quiz depth + round history, shown as a breakdown), connections and a
+text-only community feed, job listing/application CRUD.
 
 **Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
 slot in): reputation feeding the reveal threshold, difficulty-calibrated
-scoring, bug-hunt mode, community threads.
+scoring, bug-hunt mode.
+
+### Community: what is deliberately absent
+
+Connections are instant and mutual — one document per pair, no request, no
+approval, no pending state — and a post is text that gets created and listed.
+Left out on purpose, each one a schema change rather than a flag so the feed
+cannot drift into a social network by default:
+
+- direct messages
+- threaded replies and comments
+- likes, reactions, any engagement counter
+- approval-required connections (requests, accept/decline, blocking)
+- media in posts
+
+An unrevealed candidate is a pseudonym in the feed and in a connections list for
+exactly as long as they are one on their profile: names are resolved at read time
+from `users`, and an unrevealed one is never in the payload at all.
 
 ## Running locally
 
