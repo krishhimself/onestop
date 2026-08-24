@@ -48,3 +48,28 @@ async def has_graded_attempt_scoring_at_least(user_id: str, minimum: float) -> b
         {"_id": 1},
     )
     return match is not None
+
+
+async def graded_scores_for_user(user_id: str, limit: int = 500) -> list[float]:
+    """
+    Every defended score this user holds, for the reputation average.
+
+    Only `status: "graded"` counts, for the same reason the reveal threshold only
+    counts graded attempts: an attempt still awaiting its follow-up has no score
+    the candidate has had to stand behind. Attempts whose stored result is missing
+    or non-numeric are skipped rather than coerced, so a malformed grade lowers the
+    quiz count instead of dragging the average toward zero.
+
+    Projected down to the one field the caller averages.
+    """
+    docs = await collection.find(
+        {"user_id": user_id, "status": "graded"},
+        {"result.overall_score": 1},
+    ).to_list(limit)
+
+    scores = []
+    for doc in docs:
+        raw = (doc.get("result") or {}).get("overall_score")
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            scores.append(float(raw))
+    return scores

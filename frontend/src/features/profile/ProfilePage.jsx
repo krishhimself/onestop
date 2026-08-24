@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getProfile } from "./api";
 import { displayName, ANONYMOUS_NAME } from "./display";
 import { getUserId } from "../../shared/api/token";
+import { connectTo } from "../community/api";
 import Avatar from "../../shared/components/Avatar";
 import {
   ShieldLockIcon,
@@ -9,13 +10,30 @@ import {
   FileCodeIcon,
   JobsIcon,
   QuizIcon,
+  ReputationIcon,
+  UserIcon,
 } from "../../shared/components/Icons";
 
-export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz }) {
+export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, onViewReputation }) {
   const subject = userId ?? getUserId();
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [connection, setConnection] = useState(null);
+
+  const viewingSomeoneElse = Boolean(subject) && subject !== getUserId();
+
+  async function handleConnect() {
+    setConnection({ busy: true });
+    try {
+      const result = await connectTo(subject);
+      setConnection({ done: true, created: result.created });
+    } catch (e) {
+      if (e.status === 401) return onUnauthorized?.();
+      setConnection(null);
+      setError(e.message);
+    }
+  }
 
   useEffect(() => {
     let live = true;
@@ -58,7 +76,6 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz }) 
 
   const revealed = Boolean(profile?.revealed);
   const name = displayName(profile);
-  const isAnonymous = !revealed || name === ANONYMOUS_NAME;
 
   return (
     <div className="reputation-container">
@@ -101,8 +118,34 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz }) 
           </div>
         </div>
 
-        <div>
-          {!revealed && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {viewingSomeoneElse && (
+            <button
+              className={`btn ${connection?.done ? "btn-secondary" : "btn-primary"}`}
+              onClick={handleConnect}
+              disabled={connection?.busy || connection?.done}
+            >
+              <UserIcon size={14} />
+              <span>
+                {connection?.done
+                  ? connection.created
+                    ? "Connected"
+                    : "Already Connected"
+                  : connection?.busy
+                  ? "Connecting..."
+                  : "Connect"}
+              </span>
+            </button>
+          )}
+
+          {onViewReputation && (
+            <button className="btn btn-secondary" onClick={onViewReputation}>
+              <ReputationIcon size={14} />
+              <span>Reputation Score</span>
+            </button>
+          )}
+
+          {!revealed && onNavigateQuiz && (
             <button className="btn btn-primary" onClick={onNavigateQuiz}>
               <QuizIcon size={14} />
               <span>Take Repo Quiz to Unlock</span>
@@ -200,7 +243,7 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz }) 
         </div>
       </div>
 
-      {/* Rounds Reached & Verification Matrix */}
+      {/* Rounds Reached & Complexity Records */}
       <div>
         <h2 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-main)", marginBottom: "12px" }}>
           Rounds Reached & Complexity Records

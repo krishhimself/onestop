@@ -3,6 +3,7 @@ import Navbar from "./shared/components/Navbar";
 import Avatar from "./shared/components/Avatar";
 import QuizPage from "./features/quiz/QuizPage";
 import ProfilePage from "./features/profile/ProfilePage";
+import ReputationPage from "./features/reputation/ReputationPage";
 import JobsPage from "./features/jobs/JobsPage";
 import FeedPage from "./features/feed/FeedPage";
 import SuggestedPeers from "./features/feed/components/SuggestedPeers";
@@ -11,7 +12,7 @@ import RegisterPage from "./features/auth/RegisterPage";
 import { isLoggedIn, logout } from "./features/auth/api";
 import { getProfile } from "./features/profile/api";
 import { displayName } from "./features/profile/display";
-import { getUserId, getUserRole } from "./shared/api/token";
+import { getUserId, getRole } from "./shared/api/token";
 import {
   ShieldLockIcon,
   CheckCircleIcon,
@@ -22,7 +23,7 @@ export default function App() {
   // Seeded from storage so a reload does not log you out.
   const [authed, setAuthed] = useState(isLoggedIn);
   const [showRegister, setShowRegister] = useState(false);
-  const [tab, setTab] = useState("quiz"); // "quiz" | "feed" | "reputation" | "jobs"
+  const [tab, setTab] = useState(() => (getRole() === "employer" ? "jobs" : "quiz"));
   const [userProfile, setUserProfile] = useState(null);
 
   const userId = getUserId();
@@ -36,7 +37,7 @@ export default function App() {
           user_id: userId,
           name: "Anonymous Candidate",
           email: null,
-          role: getUserRole() || "candidate",
+          role: getRole() || "candidate",
           revealed: false,
         });
       });
@@ -56,6 +57,7 @@ export default function App() {
       <div className="app-shell" style={{ justifyContent: "center" }}>
         <AuthView
           onAuthed={() => {
+            setTab(getRole() === "employer" ? "jobs" : "quiz");
             setAuthed(true);
             loadUserProfile();
           }}
@@ -72,7 +74,7 @@ export default function App() {
 
   const name = displayName(userProfile);
   const revealed = Boolean(userProfile?.revealed);
-  const role = userProfile?.role || "candidate";
+  const role = userProfile?.role || getRole() || "candidate";
 
   return (
     <div className="app-shell">

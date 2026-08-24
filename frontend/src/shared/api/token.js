@@ -32,14 +32,9 @@ export function clearToken() {
   }
 }
 
-export function getUserId() {
+function claim(name) {
   const payload = getUserPayload();
-  return payload?.sub ?? null;
-}
-
-export function getUserRole() {
-  const payload = getUserPayload();
-  return payload?.role ?? "candidate";
+  return payload ? payload[name] ?? null : null;
 }
 
 export function getUserPayload() {
@@ -50,6 +45,18 @@ export function getUserPayload() {
     const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
     return JSON.parse(json);
   } catch {
-    return null; // malformed token — treat it as no session rather than crashing
+    return null; // malformed token - treat it as no session rather than crashing
   }
+}
+
+export function getUserId() {
+  return claim("sub");
+}
+
+export function getRole() {
+  return claim("role") || "candidate";
+}
+
+export function getUserRole() {
+  return getRole();
 }

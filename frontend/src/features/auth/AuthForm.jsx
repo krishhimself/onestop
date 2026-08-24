@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { BrandLogoIcon, CheckCircleIcon, ShieldLockIcon } from "../../shared/components/Icons";
 
+const ROLES = [
+  { value: "candidate", label: "Candidate", desc: "Take repo quizzes & build verified reputation." },
+  { value: "employer", label: "Employer", desc: "Post roles gated behind company technical quizzes." },
+];
+
 export default function AuthForm({ title, submitLabel, onSubmit, signup, footer }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -141,22 +146,18 @@ export default function AuthForm({ title, submitLabel, onSubmit, signup, footer 
                 Account Type
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
-                <button
-                  type="button"
-                  className={`btn ${role === "candidate" ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setRole("candidate")}
-                  style={{ width: "100%", justifyContent: "center" }}
-                >
-                  Candidate
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${role === "employer" ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => setRole("employer")}
-                  style={{ width: "100%", justifyContent: "center" }}
-                >
-                  Employer
-                </button>
+                {ROLES.map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`btn ${role === value ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setRole(value)}
+                    style={{ width: "100%", justifyContent: "center" }}
+                    title={desc}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           )}

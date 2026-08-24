@@ -21,3 +21,16 @@ async def get_job(job_id: str) -> Optional[dict]:
 
 async def create_application(doc: dict) -> None:
     await applications_collection.insert_one(doc)
+
+
+async def count_applications_with_status(user_id: str, statuses: tuple[str, ...]) -> int:
+    """
+    How many of this user's applications sit in one of `statuses`.
+
+    Which statuses mean anything is the service's call, not this file's — this
+    only counts. Counted server-side rather than by pulling the documents: the
+    caller wants the number, not the applications.
+    """
+    return await applications_collection.count_documents(
+        {"user_id": user_id, "status": {"$in": list(statuses)}}
+    )

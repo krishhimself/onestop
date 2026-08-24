@@ -50,3 +50,51 @@ def attempt(questions, complexity):
         },
         "status": "awaiting_followup",
     }
+
+
+COMPANY_QUESTIONS = [
+    {"id": "cq1", "question": "What does this hire do in their first week?", "category": "role"},
+    {"id": "cq2", "question": "Which of the six listed technologies do they touch daily?", "category": "stack"},
+    {"id": "cq3", "question": "Who decides what they build?", "category": "team"},
+]
+
+DRAFT = {
+    "company_name": "Acme",
+    "role_title": "Backend Engineer",
+    "description": "Own the ingest pipeline end to end.",
+    "tech_stack": ["Python", "MongoDB"],
+}
+
+
+@pytest.fixture
+def draft():
+    return dict(DRAFT)
+
+
+@pytest.fixture
+def company_questions():
+    return [dict(q) for q in COMPANY_QUESTIONS]
+
+
+@pytest.fixture
+def company_attempt(company_questions, draft):
+    """A stored company_quiz_attempts document mid-flow, awaiting its follow-up."""
+    return {
+        "_id": "cquiz-1",
+        "user_id": "e1",
+        "draft": draft,
+        "questions": company_questions,
+        "answers": [
+            {"question_id": "cq1", "answer": "typed reply", "seconds_left": 6.0,
+             "flagged_paste": False, "paste_delta": 0},
+            {"question_id": "cq2", "answer": "x" * 400, "seconds_left": 70.0,
+             "flagged_paste": True, "paste_delta": 400},
+        ],
+        "followup": {
+            "id": "cf1",
+            "question": "You said they own ingest — who is on call for it today?",
+            "targets_question_id": "cq2",
+            "answer": None,
+        },
+        "status": "awaiting_followup",
+    }
