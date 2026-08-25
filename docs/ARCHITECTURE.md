@@ -154,16 +154,18 @@ should ever import from a `features/` folder — dependencies point inward.
 `api.js` clients sat unused next to them — the build stayed green, the tests stayed
 green, and the app demoed fine, because nothing about a hardcoded array is a type
 error. `features/jobs/api.js` also grew a `createJob()` posting to `/jobs/`, a route
-that does not exist precisely so that it cannot. If a `const INITIAL_*` array appears
-next to a feature's `api.js` again, that is the same regression.
+that does not exist precisely so that it cannot.
+
+Each feature page now has a `<Name>.test.jsx` beside it that mounts it in jsdom with
+its `api.js` mocked and asserts the call happens. That is the cheap half. The other
+half is that each of those tests also pins the one invariant its page owns — the
+answer payload's clock and paste flag, grading strictly after the follow-up, the
+overall score never rendering without its quiz count — so the suite fails on a page
+that calls the API and then displays something else. Adding a `const INITIAL_*` array
+next to a feature's `api.js` now breaks a test rather than a demo.
 
 ## What's next architecturally (not yet built)
 
-- **A test that a screen actually calls its API.** Nothing in either suite would
-  have caught the three mock screens: the backend tests passed because the backend
-  was right, and the frontend has no rendering tests at all. The cheapest guard is
-  a render test per feature page asserting its `api.js` was called — that, or the
-  discipline of never letting a page hold its own data.
 - Wiring the reputation score into the reveal. `compute_reputation()` now exists
   and combines quiz depth with round history, but `meets_reveal_threshold()` is
   still its own placeholder: one graded quiz at `REVEAL_MIN_SCORE` or better. The

@@ -243,7 +243,24 @@ docker compose up --build
 
 ## Tests
 ```bash
-cd backend && pytest tests      # 206 tests
-cd frontend && npm test         # node --test: pasteDetect, profile display
+cd backend  && pytest tests     # 206 tests
+cd frontend && npm test         # 62 tests: node --test, then vitest
 ```
 Both are what CI runs (`.github/workflows/ci.yml`), alongside `npm run build`.
+
+The frontend runs two suites, split by what they need:
+
+| Command | Files | What it covers |
+|---|---|---|
+| `npm run test:unit` | `*.test.js` | Pure logic — paste detection, name display. No DOM, no transform. |
+| `npm run test:render` | `*.test.jsx` | Feature pages mounted in jsdom, with `api.js` mocked. |
+
+The render suite exists for one specific failure. A page that renders a hardcoded
+array instead of calling its API passes a type check, passes the backend suite,
+and builds clean — that is exactly what shipped on 2026-08-25 and stood for a day.
+So every feature page has a test asserting it calls its own `api.js` on mount and
+renders what came back, plus the invariant that page is responsible for: the quiz
+sends every answer with its clock and paste flag, the employer round grades only
+after the follow-up and never re-sends the draft, the profile never shows an
+overall score without its quiz count, and the feed offers no control for anything
+the backend cannot store. Run against the pre-fix commit, 15 of them fail.
