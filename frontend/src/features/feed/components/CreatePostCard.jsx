@@ -2,27 +2,23 @@ import { useState } from "react";
 import Avatar from "../../../shared/components/Avatar";
 import { SendIcon } from "../../../shared/components/Icons";
 
-const AVAILABLE_TAGS = [
-  "#RepoQuizPass",
-  "#Architecture",
-  "#Engineering",
-  "#Hiring",
-  "#OpenSource",
-];
+// Mirrors MAX_POST_LENGTH in community_service.py. The backend rejects anything
+// longer; this only saves the round trip.
+const MAX_POST_LENGTH = 2000;
 
-export default function CreatePostCard({ userProfile, onPublishPost }) {
+export default function CreatePostCard({ userProfile, onPublishPost, publishing }) {
   const [content, setContent] = useState("");
-  const [selectedTag, setSelectedTag] = useState("#RepoQuizPass");
   const name = userProfile?.revealed ? userProfile?.name || "Candidate" : "Anonymous Candidate";
   const revealed = Boolean(userProfile?.revealed);
   const role = userProfile?.role || "candidate";
 
-  function handlePublish() {
-    if (!content.trim()) return;
-    onPublishPost({
-      content: content.trim(),
-      tag: selectedTag,
-    });
+  const body = content.trim();
+  const tooLong = body.length > MAX_POST_LENGTH;
+  const ready = body.length > 0 && !tooLong && !publishing;
+
+  async function handlePublish() {
+    if (!ready) return;
+    await onPublishPost({ content: body });
     setContent("");
   }
 
@@ -41,25 +37,13 @@ export default function CreatePostCard({ userProfile, onPublishPost }) {
       </div>
 
       <div className="create-post-actions">
-        <div className="post-tag-selector">
-          {AVAILABLE_TAGS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`post-tag-btn ${selectedTag === t ? "active" : ""}`}
-              onClick={() => setSelectedTag(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        <span style={{ fontSize: "12px", color: tooLong ? "var(--accent)" : "var(--text-subtle)" }}>
+          {body.length} / {MAX_POST_LENGTH}
+          {!revealed && " · posting as Anonymous Candidate"}
+        </span>
 
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={handlePublish}
-          disabled={!content.trim()}
-        >
-          <span>Publish Post</span>
+        <button className="btn btn-primary btn-sm" onClick={handlePublish} disabled={!ready}>
+          <span>{publishing ? "Publishing..." : "Publish Post"}</span>
           <SendIcon size={12} />
         </button>
       </div>

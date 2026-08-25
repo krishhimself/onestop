@@ -4,13 +4,6 @@ export function fetchJobs() {
   return request("/jobs/");
 }
 
-export function createJob(jobData) {
-  return request("/jobs/", {
-    method: "POST",
-    body: JSON.stringify(jobData),
-  });
-}
-
 export function applyToJob(jobId, userId, quizScoreId = null) {
   return request("/jobs/apply", {
     method: "POST",
@@ -25,9 +18,10 @@ export function applyToJob(jobId, userId, quizScoreId = null) {
 // --- company quiz ---------------------------------------------------------
 //
 // There is no createJob() here on purpose: the backend has no ungated route to
-// call. A posting is created by the backend when submitFollowUp comes back with
-// passed: true, from the draft sent to generateCompanyQuiz — which is why the
-// draft is not sent again at the end.
+// call. A posting is created by the backend when submitCompanyFollowUp comes back
+// with passed: true, from the draft sent to generateCompanyQuiz — which is why the
+// draft is not sent again at the end. One briefly existed and posted to /jobs/,
+// a route that does not exist; if it reappears, the gate has been removed.
 
 export function generateCompanyQuiz(draft) {
   return request("/jobs/company-quiz/generate", {

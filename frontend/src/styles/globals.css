@@ -1112,6 +1112,24 @@ a:hover {
   gap: 6px;
 }
 
+/* A name that opens a profile. A button rather than an anchor because there is no
+   URL to go to — the app has one route — but it must still be reachable by keyboard. */
+.btn-linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.btn-linklike:hover,
+.btn-linklike:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .post-author-handle {
   font-size: 12px;
   color: var(--text-subtle);

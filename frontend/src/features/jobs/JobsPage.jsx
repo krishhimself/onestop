@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { fetchJobs, createJob, applyToJob } from "./api";
+import { fetchJobs, applyToJob } from "./api";
 import { getUserId, getUserRole } from "../../shared/api/token";
-import QuestionCard from "../quiz/components/QuestionCard";
+// The posting flow is not implemented here on purpose. A job exists only as the
+// output of a defended company quiz, and PostJobPage is what drives that round;
+// anything in this file that created a posting would be a second way in.
+import PostJobPage from "./PostJobPage";
 import {
   JobsIcon,
   CheckCircleIcon,
@@ -9,39 +12,17 @@ import {
   PlusIcon,
 } from "../../shared/components/Icons";
 
-const COMPANY_VERIFICATION_QUESTIONS = [
-  {
-    id: "q_comp_1",
-    question: "What specific architectural patterns or concurrency models does this role interact with daily?",
-    category: "Architecture Reality",
-    file_reference: "production_stack",
-  },
-  {
-    id: "q_comp_2",
-    question: "What is the primary failure mode or technical debt in the repository this hire will be fixing?",
-    category: "Day-to-day Reality",
-    file_reference: "system_architecture",
-  },
-];
-
 export default function JobsPage({ onUnauthorized, userProfile }) {
   const userId = getUserId();
   const role = userProfile?.role || getUserRole() || "candidate";
+  // The company-quiz routes require an employer token, so a candidate clicking
+  // through to the posting round would only reach a 403.
+  const isEmployer = role === "employer";
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeView, setActiveView] = useState("browse"); // "browse" | "post"
-
-  // Employer Gated Post Form State
-  const [step, setStep] = useState("verify"); // "verify" | "compose" | "published"
-  const [verificationAnswers, setVerificationAnswers] = useState({});
-  const [companyName, setCompanyName] = useState("");
-  const [roleTitle, setRoleTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [techStackInput, setTechStackInput] = useState("");
-  const [postingBusy, setPostingBusy] = useState(false);
-  const [postSuccess, setPostSuccess] = useState(false);
 
   // Application State
   const [appliedJobs, setAppliedJobs] = useState(() => new Set());
@@ -82,48 +63,6 @@ export default function JobsPage({ onUnauthorized, userProfile }) {
     }
   }
 
-  async function handlePostJob(e) {
-    e.preventDefault();
-    setPostingBusy(true);
-    setError("");
-    try {
-      const techStack = techStackInput
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-      await createJob({
-        company_name: companyName.trim(),
-        role_title: roleTitle.trim(),
-        description: description.trim(),
-        tech_stack: techStack,
-      });
-
-      setPostSuccess(true);
-      setStep("published");
-      await loadJobs();
-    } catch (err) {
-      if (err.status === 401) return onUnauthorized?.();
-      setError(err.message || "Failed to create job posting.");
-    } finally {
-      setPostingBusy(false);
-    }
-  }
-
-  function handleResetPost() {
-    setStep("verify");
-    setVerificationAnswers({});
-    setCompanyName("");
-    setRoleTitle("");
-    setDescription("");
-    setTechStackInput("");
-    setPostSuccess(false);
-    setActiveView("browse");
-  }
-
-  const isVerificationComplete =
-    COMPANY_VERIFICATION_QUESTIONS.every((q) => (verificationAnswers[q.id] || "").trim().length > 10);
-
   return (
     <div className="jobs-container">
       {/* Top Header */}
@@ -150,13 +89,15 @@ export default function JobsPage({ onUnauthorized, userProfile }) {
               <span>Browse Roles ({jobs.length})</span>
             </button>
 
-            <button
-              className={`btn ${activeView === "post" ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => setActiveView("post")}
-            >
-              <PlusIcon size={14} />
-              <span>Employer: Post Role</span>
-            </button>
+            {isEmployer && (
+              <button
+                className={`btn ${activeView === "post" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setActiveView("post")}
+              >
+                <PlusIcon size={14} />
+                <span>Post a Role</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -179,11 +120,14 @@ export default function JobsPage({ onUnauthorized, userProfile }) {
               <JobsIcon size={32} style={{ color: "var(--text-subtle)", marginBottom: "10px" }} />
               <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>No Active Job Postings</h3>
               <p style={{ color: "var(--text-muted)", maxWidth: "420px", margin: "0 auto 16px", fontSize: "13px" }}>
-                Be the first employer to post a role. Postings require passing a short technical expectation audit.
+                A posting only appears here once an employer has written it and defended
+                it under the clock. Nothing else creates one.
               </p>
-              <button className="btn btn-primary" onClick={() => setActiveView("post")}>
-                Post a Role
-              </button>
+              {isEmployer && (
+                <button className="btn btn-primary" onClick={() => setActiveView("post")}>
+                  Post a Role
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -251,158 +195,31 @@ export default function JobsPage({ onUnauthorized, userProfile }) {
         </div>
       )}
 
-      {/* VIEW 2: Employer Gated Post Flow */}
+      {/* VIEW 2: the real gate — draft, defend, publish on a pass */}
       {activeView === "post" && (
-        <div className="card" style={{ padding: "24px" }}>
-          {step === "verify" && (
-            <div>
-              <div className="badge badge-accent" style={{ marginBottom: "10px" }}>
-                <ShieldLockIcon size={12} />
-                Step 1: Role Verification Gating
-              </div>
-
-              <h2 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "4px" }}>
-                Company-Side Technical Audit
-              </h2>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "18px", lineHeight: "1.5" }}>
-                Just as candidates defend their repos, OneStop gates job creation behind an architectural verification check to ensure postings reflect real engineering requirements rather than generic recruiter copy.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "18px" }}>
-                {COMPANY_VERIFICATION_QUESTIONS.map((q) => (
-                  <QuestionCard
-                    key={q.id}
-                    question={q}
-                    answer={verificationAnswers[q.id] || ""}
-                    timeLimit={120}
-                    onAnswerChange={(id, val) =>
-                      setVerificationAnswers((prev) => ({ ...prev, [id]: val }))
-                    }
-                  />
-                ))}
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-                <button className="btn btn-secondary" onClick={() => setActiveView("browse")}>
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  disabled={!isVerificationComplete}
-                  onClick={() => setStep("compose")}
-                >
-                  <span>Verification Complete: Unlock Form</span>
-                  <CheckCircleIcon size={14} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === "compose" && (
-            <form onSubmit={handlePostJob}>
-              <div className="badge badge-success" style={{ marginBottom: "10px" }}>
-                <CheckCircleIcon size={12} />
-                Step 2: Role Details
-              </div>
-
-              <h2 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "4px" }}>
-                Publish Verified Job Listing
-              </h2>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "18px" }}>
-                Your technical verification has been confirmed. Enter the public posting details below.
-              </p>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="job-company">
-                  Company Name
-                </label>
-                <input
-                  id="job-company"
-                  className="input-field"
-                  placeholder="e.g. Acme Corp"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="job-title">
-                  Role Title
-                </label>
-                <input
-                  id="job-title"
-                  className="input-field"
-                  placeholder="e.g. Senior Backend Engineer (Distributed Systems)"
-                  value={roleTitle}
-                  onChange={(e) => setRoleTitle(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="job-stack">
-                  Primary Tech Stack (comma separated)
-                </label>
-                <input
-                  id="job-stack"
-                  className="input-field"
-                  placeholder="e.g. Python, FastAPI, PostgreSQL, Redis, Docker"
-                  value={techStackInput}
-                  onChange={(e) => setTechStackInput(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="job-desc">
-                  Role Description & Technical Responsibilities
-                </label>
-                <textarea
-                  id="job-desc"
-                  className="textarea-field"
-                  style={{ minHeight: "110px" }}
-                  placeholder="Detail what this engineer will build, key systems owned, and expectations..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "16px" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setStep("verify")}
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={postingBusy || !companyName.trim() || !roleTitle.trim() || !description.trim()}
-                >
-                  {postingBusy ? "Publishing..." : "Publish Verified Role"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {step === "published" && (
-            <div style={{ textAlign: "center", padding: "36px 10px" }}>
-              <CheckCircleIcon size={36} style={{ color: "var(--success)", marginBottom: "10px" }} />
-              <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>
-                Job Successfully Published
-              </h2>
-              <p style={{ color: "var(--text-muted)", maxWidth: "440px", margin: "0 auto 18px", fontSize: "13px" }}>
-                Candidates with verified repository comprehension scores can now discover and apply to your role.
-              </p>
-              <button className="btn btn-primary" onClick={handleResetPost}>
-                View Active Listings
-              </button>
-            </div>
-          )}
-        </div>
+        isEmployer ? (
+          <PostJobPage
+            onUnauthorized={onUnauthorized}
+            onPublished={loadJobs}
+            onCancel={() => setActiveView("browse")}
+          />
+        ) : (
+          <div className="card" style={{ textAlign: "center", padding: "48px 20px" }}>
+            <ShieldLockIcon size={32} style={{ color: "var(--text-subtle)", marginBottom: "10px" }} />
+            <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "4px" }}>
+              Employer accounts only
+            </h3>
+            <p style={{ color: "var(--text-muted)", maxWidth: "420px", margin: "0 auto 16px", fontSize: "13px" }}>
+              The posting round runs against an employer token. Register as an employer
+              to write a posting and answer for it.
+            </p>
+            <button className="btn btn-secondary" onClick={() => setActiveView("browse")}>
+              Back to Roles
+            </button>
+          </div>
+        )
       )}
+
     </div>
   );
 }

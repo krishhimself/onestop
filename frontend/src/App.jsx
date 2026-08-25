@@ -3,10 +3,9 @@ import Navbar from "./shared/components/Navbar";
 import Avatar from "./shared/components/Avatar";
 import QuizPage from "./features/quiz/QuizPage";
 import ProfilePage from "./features/profile/ProfilePage";
-import ReputationPage from "./features/reputation/ReputationPage";
 import JobsPage from "./features/jobs/JobsPage";
 import FeedPage from "./features/feed/FeedPage";
-import SuggestedPeers from "./features/feed/components/SuggestedPeers";
+import ConnectionsList from "./features/feed/components/ConnectionsList";
 import LoginPage from "./features/auth/LoginPage";
 import RegisterPage from "./features/auth/RegisterPage";
 import { isLoggedIn, logout } from "./features/auth/api";
@@ -25,8 +24,19 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false);
   const [tab, setTab] = useState(() => (getRole() === "employer" ? "jobs" : "quiz"));
   const [userProfile, setUserProfile] = useState(null);
+  // Whose profile the Reputation tab is showing. null means your own — the tab is
+  // the only profile view, so opening someone else's is a subject change, not a
+  // second screen.
+  const [viewedUserId, setViewedUserId] = useState(null);
+  // Bumped after a connect so the connections list re-reads without a full reload.
+  const [connectionsKey, setConnectionsKey] = useState(0);
 
   const userId = getUserId();
+
+  function openProfile(id) {
+    setViewedUserId(id === userId ? null : id);
+    setTab("reputation");
+  }
 
   function loadUserProfile() {
     if (!userId) return;
@@ -81,7 +91,12 @@ export default function App() {
       {/* Top Navbar */}
       <Navbar
         activeTab={tab}
-        onSelectTab={setTab}
+        onSelectTab={(next) => {
+          // Selecting the tab always means your own profile; only opening someone
+          // from the feed or a connection row changes the subject.
+          setViewedUserId(null);
+          setTab(next);
+        }}
         userProfile={userProfile}
         onLogout={() => {
           logout();
@@ -142,7 +157,7 @@ export default function App() {
 
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => setTab("reputation")}
+              onClick={() => openProfile(userId)}
               style={{ width: "100%", marginTop: "12px" }}
             >
               <ReputationIcon size={13} />
@@ -176,15 +191,18 @@ export default function App() {
           {tab === "feed" && (
             <FeedPage
               userProfile={userProfile}
-              onNavigateQuiz={() => setTab("quiz")}
-              onNavigateReputation={() => setTab("reputation")}
+              onUnauthorized={onUnauthorized}
+              onOpenProfile={openProfile}
             />
           )}
 
           {tab === "reputation" && (
             <ProfilePage
+              userId={viewedUserId}
               onUnauthorized={onUnauthorized}
               onNavigateQuiz={() => setTab("quiz")}
+              onBack={viewedUserId ? () => setViewedUserId(null) : undefined}
+              onConnected={() => setConnectionsKey((n) => n + 1)}
             />
           )}
 
@@ -196,8 +214,10 @@ export default function App() {
           )}
         </section>
 
-        {/* RIGHT COLUMN: Verified Engineers / Connections */}
-        {tab !== "quiz" && <SuggestedPeers />}
+        {/* RIGHT COLUMN: your connections, from GET /users/{id}/connections */}
+        {tab !== "quiz" && (
+          <ConnectionsList onOpenProfile={openProfile} refreshKey={connectionsKey} />
+        )}
       </main>
     </div>
   );

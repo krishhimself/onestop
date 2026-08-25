@@ -6,6 +6,7 @@ import PostingResult from "./components/PostingResult";
 // silent paste detection, and two copies would drift. If a third feature needs it,
 // move it to shared/components rather than copying it again.
 import QuestionCard from "../quiz/components/QuestionCard";
+import { ClockIcon } from "../../shared/components/Icons";
 import {
   generateCompanyQuiz,
   submitCompanyFollowUp,
@@ -14,7 +15,7 @@ import {
 
 const EMPTY_DRAFT = { company_name: "", role_title: "", description: "", tech_stack: "" };
 
-export default function PostJobPage({ onUnauthorized }) {
+export default function PostJobPage({ onUnauthorized, onPublished, onCancel }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -106,9 +107,14 @@ export default function PostJobPage({ onUnauthorized }) {
     setError("");
     try {
       const id = followup.followup.id;
-      setResult(
-        await submitCompanyFollowUp(quiz.quiz_id, followupAnswer, timeLeft.current[id] ?? null)
+      const graded = await submitCompanyFollowUp(
+        quiz.quiz_id,
+        followupAnswer,
+        timeLeft.current[id] ?? null
       );
+      setResult(graded);
+      // Only a pass created a posting, so only a pass changes the listings.
+      if (graded?.passed) onPublished?.();
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
       setError(e.message);
@@ -133,34 +139,54 @@ export default function PostJobPage({ onUnauthorized }) {
   const drafting = !quiz && !result;
 
   return (
-    <div className="container">
-      <h1>Post a Job</h1>
-      <p className="tagline">
-        Write the posting, then answer for it. Postings go live only if they describe a
-        role you can actually account for.
-      </p>
-
-      {drafting && (
-        <JobDraftForm
-          draft={draft}
-          onChange={setDraft}
-          onSubmit={handleGenerate}
-          loading={loading}
-        />
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+        </div>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {drafting && (
+        <>
+          <JobDraftForm
+            draft={draft}
+            onChange={setDraft}
+            onSubmit={handleGenerate}
+            loading={loading}
+          />
+          {onCancel && (
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {quiz && !followup && !result && (
-        <div className="quiz">
-          <p className="rules">
-            {limit}s per question · answers lock when the timer runs out · your draft is
-            held until this is graded
-          </p>
-          {quiz.questions.map((q) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="quiz-header-bar">
+            <div className="quiz-rules-pill">
+              <ClockIcon size={14} style={{ color: "var(--text-subtle)" }} />
+              <span>
+                <strong>{limit}s per question</strong> · Your draft is held until this is
+                graded
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="badge badge-mist">{quiz.questions.length} Questions</span>
+              <span className="badge badge-cream">{quiz.role_title}</span>
+            </div>
+          </div>
+
+          {quiz.questions.map((q, idx) => (
             <QuestionCard
               key={q.id}
               question={q}
+              questionNumber={idx + 1}
+              totalQuestions={quiz.questions.length}
               answer={answers[q.id]}
               timeLimit={limit}
               onTick={(id, s) => (timeLeft.current[id] = s)}
@@ -169,29 +195,53 @@ export default function PostJobPage({ onUnauthorized }) {
               onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
             />
           ))}
-          <button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Submitting..." : "Submit Answers"}
-          </button>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+            <button className="btn btn-primary btn-lg" onClick={handleSubmit} disabled={loading}>
+              {loading ? "Submitting Answers..." : "Submit Round for Defense"}
+            </button>
+          </div>
         </div>
       )}
 
       {followup && !result && (
-        <div className="quiz">
-          <p className="rules">
-            One follow-up on what you just wrote. Same {followup.time_limit_seconds}s, same
-            rules.
-          </p>
-          <QuestionCard
-            question={{ id: followup.followup.id, question: followup.followup.question }}
-            answer={followupAnswer}
-            timeLimit={followup.time_limit_seconds}
-            onTick={(id, s) => (timeLeft.current[id] = s)}
-            onExpire={markExpired}
-            onAnswerChange={(_, val) => setFollowupAnswer(val)}
-          />
-          <button onClick={handleFollowUp} disabled={loading}>
-            {loading ? "Grading..." : "Submit Follow-up"}
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="followup-card">
+            <div className="followup-badge-callout">
+              <span className="badge badge-accent">Adaptive Defense Round</span>
+              <span className="badge badge-mist">
+                {followup.time_limit_seconds}s Clock
+              </span>
+            </div>
+
+            <h2 style={{ fontSize: "17px", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+              Defend Your Posting
+            </h2>
+
+            <p className="followup-explanation">
+              One follow-up on wording you just used about this role. Nothing is graded
+              and nothing publishes until this is answered.
+            </p>
+
+            <QuestionCard
+              question={{
+                id: followup.followup.id,
+                question: followup.followup.question,
+                category: "Adaptive Defense",
+              }}
+              answer={followupAnswer}
+              timeLimit={followup.time_limit_seconds}
+              onTick={(id, s) => (timeLeft.current[id] = s)}
+              onExpire={markExpired}
+              onAnswerChange={(_, val) => setFollowupAnswer(val)}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary btn-lg" onClick={handleFollowUp} disabled={loading}>
+              {loading ? "Grading..." : "Submit Follow-up"}
+            </button>
+          </div>
         </div>
       )}
 

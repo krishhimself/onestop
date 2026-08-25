@@ -3,18 +3,16 @@ import { getProfile } from "./api";
 import { displayName, ANONYMOUS_NAME } from "./display";
 import { getUserId } from "../../shared/api/token";
 import { connectTo } from "../community/api";
+import ReputationPage from "../reputation/ReputationPage";
 import Avatar from "../../shared/components/Avatar";
 import {
   ShieldLockIcon,
   CheckCircleIcon,
-  FileCodeIcon,
-  JobsIcon,
   QuizIcon,
-  ReputationIcon,
   UserIcon,
 } from "../../shared/components/Icons";
 
-export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, onViewReputation }) {
+export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, onBack, onConnected }) {
   const subject = userId ?? getUserId();
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
@@ -28,6 +26,8 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
     try {
       const result = await connectTo(subject);
       setConnection({ done: true, created: result.created });
+      // Only a new pair changes the sidebar; a repeat returns created: false.
+      if (result.created) onConnected?.();
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
       setConnection(null);
@@ -119,6 +119,12 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {viewingSomeoneElse && onBack && (
+            <button className="btn btn-ghost" onClick={onBack}>
+              <span>Back to your profile</span>
+            </button>
+          )}
+
           {viewingSomeoneElse && (
             <button
               className={`btn ${connection?.done ? "btn-secondary" : "btn-primary"}`}
@@ -138,14 +144,7 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
             </button>
           )}
 
-          {onViewReputation && (
-            <button className="btn btn-secondary" onClick={onViewReputation}>
-              <ReputationIcon size={14} />
-              <span>Reputation Score</span>
-            </button>
-          )}
-
-          {!revealed && onNavigateQuiz && (
+          {!revealed && !viewingSomeoneElse && onNavigateQuiz && (
             <button className="btn btn-primary" onClick={onNavigateQuiz}>
               <QuizIcon size={14} />
               <span>Take Repo Quiz to Unlock</span>
@@ -170,7 +169,11 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
                 : "Anonymous-First Profile Active"}
             </h3>
             <p style={{ fontSize: "13px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-              {revealed
+              {viewingSomeoneElse
+                ? revealed
+                  ? "This candidate cleared a defended repo quiz at 70/100 or better, which is what released their name and contact details."
+                  : "This candidate is a pseudonym until they clear a defended repo quiz at 70+. Their name is not withheld by this page — it is not in the response at all."
+                : revealed
                 ? "You passed a defended repository quiz with a score of 70/100 or higher. Employers viewing your applications or candidate profile now see your real name and verified contact details."
                 : "Your name and email remain hidden until you score 70+ on a defended repo quiz. Code earns the introduction before credentials matter."}
             </p>
@@ -178,137 +181,12 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
         </div>
       </div>
 
-      {/* Comprehension & Reputation Breakdown */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <div>
-            <h2 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-main)" }}>
-              Comprehension Breakdown
-            </h2>
-            <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-              Independent architectural pillars — never flattened into one opaque blended number.
-            </p>
-          </div>
-          <span className="badge badge-accent">Multi-Signal Audit</span>
-        </div>
+      {/* The reputation breakdown, from GET /users/{id}/reputation.
+          Rendered by the component that owns the invariant rather than restated
+          here: the overall figure must never appear without quiz_count next to
+          it, and one copy of that rule is the only way it stays true. */}
+      <ReputationPage userId={subject} onUnauthorized={onUnauthorized} />
 
-        <div className="reputation-grid">
-          {/* Pillar 1: Problem Understanding */}
-          <div className="rep-stat-card">
-            <span className="rep-stat-label">Pillar I</span>
-            <h4 style={{ fontSize: "14px", fontWeight: "600" }}>Problem Understanding</h4>
-            <span className="rep-stat-value" style={{ color: "var(--text-main)" }}>
-              {revealed ? "Verified" : "Evaluating"}
-            </span>
-            <p className="rep-stat-desc">
-              Domain context, user requirements, and core problems solved.
-            </p>
-          </div>
-
-          {/* Pillar 2: Logic & Reasoning */}
-          <div className="rep-stat-card">
-            <span className="rep-stat-label">Pillar II</span>
-            <h4 style={{ fontSize: "14px", fontWeight: "600" }}>Logic & Reasoning</h4>
-            <span className="rep-stat-value" style={{ color: "var(--accent)" }}>
-              {revealed ? "High Defense" : "Pending"}
-            </span>
-            <p className="rep-stat-desc">
-              End-to-end execution paths, internal invariants, and state manipulation.
-            </p>
-          </div>
-
-          {/* Pillar 3: Tech Stack Awareness */}
-          <div className="rep-stat-card">
-            <span className="rep-stat-label">Pillar III</span>
-            <h4 style={{ fontSize: "14px", fontWeight: "600" }}>Tech Stack Awareness</h4>
-            <span className="rep-stat-value" style={{ color: "var(--navy)" }}>
-              {revealed ? "Architect" : "Pending"}
-            </span>
-            <p className="rep-stat-desc">
-              Library choices, framework trade-offs, and design patterns.
-            </p>
-          </div>
-
-          {/* Pillar 4: Usage & Edge Cases */}
-          <div className="rep-stat-card">
-            <span className="rep-stat-label">Pillar IV</span>
-            <h4 style={{ fontSize: "14px", fontWeight: "600" }}>Usage & Edge Cases</h4>
-            <span className="rep-stat-value" style={{ color: "var(--success)" }}>
-              {revealed ? "Verified" : "Pending"}
-            </span>
-            <p className="rep-stat-desc">
-              Failure boundaries, error propagation, and concurrency handling.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Rounds Reached & Complexity Records */}
-      <div>
-        <h2 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-main)", marginBottom: "12px" }}>
-          Rounds Reached & Complexity Records
-        </h2>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
-          {/* Card 1: Project Complexity Tier Distribution */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">
-                <FileCodeIcon size={14} style={{ color: "var(--text-subtle)" }} />
-                <span>Project Complexity Tiers</span>
-              </span>
-              <span className="badge badge-cream">Calibrated</span>
-            </div>
-            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
-              Independent repo complexity rating (file count, async patterns, state management, tests).
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Complex Systems</span>
-                <span className="badge badge-accent">Tier 3</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Moderate Fullstack / APIs</span>
-                <span className="badge badge-mist">Tier 2</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Trivial Repositories</span>
-                <span className="badge badge-cream">Tier 1</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Interview & Defense Funnel */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">
-                <JobsIcon size={14} style={{ color: "var(--accent)" }} />
-                <span>Rounds Reached History</span>
-              </span>
-              <span className="badge badge-accent">Live Funnel</span>
-            </div>
-            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
-              Progression through adaptive defenses and employer interview loops.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Adaptive Follow-Up Defenses</span>
-                <span style={{ fontWeight: "600", color: "var(--text-main)" }}>{revealed ? "Passed" : "0"}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Employer Direct Intros</span>
-                <span style={{ fontWeight: "600", color: "var(--text-main)" }}>{revealed ? "Active" : "Locked"}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
-                <span>Identity Latch Status</span>
-                <span style={{ fontWeight: "600", color: revealed ? "var(--success)" : "var(--cream-text)" }}>
-                  {revealed ? "Revealed" : "Anonymous"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

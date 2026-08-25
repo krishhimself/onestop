@@ -1,152 +1,88 @@
-import { useState } from "react";
 import Avatar from "../../../shared/components/Avatar";
-import {
-  HeartIcon,
-  MessageIcon,
-  ShareIcon,
-  CheckCircleIcon,
-  SendIcon,
-} from "../../../shared/components/Icons";
+import { CheckCircleIcon } from "../../../shared/components/Icons";
 
-export default function PostCard({ post, onLike, onAddComment, currentUserName }) {
-  const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [sharedNotice, setSharedNotice] = useState(false);
+/**
+ * One post, exactly as the API returns it.
+ *
+ * There are no like, reply, or share controls because none of them exist behind
+ * the feed — see "what is deliberately absent" in the README. A control here for
+ * something the backend does not store would be a claim the platform cannot keep.
+ */
+function timeAgo(iso) {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
-  function handleCommentSubmit(e) {
-    e.preventDefault();
-    if (!commentText.trim()) return;
-    onAddComment(post.id, commentText.trim());
-    setCommentText("");
-  }
-
-  function handleShare() {
-    setSharedNotice(true);
-    setTimeout(() => setSharedNotice(false), 2000);
-  }
+export default function PostCard({ post, onOpenProfile }) {
+  // `author.name` already carries the pseudonym when the author is unrevealed;
+  // the real name is not in the payload at all, so there is nothing to hide here.
+  const author = post.author || {};
+  const revealed = Boolean(author.revealed);
 
   return (
     <article className="post-card">
-      {/* Author Row */}
       <div className="post-author-row">
         <div className="post-author-info">
           <Avatar
-            name={post.authorName}
+            name={author.name}
             size="md"
-            revealed={post.revealed}
-            role={post.authorRole}
+            revealed={revealed}
+            role="candidate"
             showBadge
           />
 
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div className="post-author-name">
-              <span>{post.authorName}</span>
-              {post.revealed && (
-                <CheckCircleIcon size={13} style={{ color: "var(--success)" }} />
+              {onOpenProfile && author.user_id ? (
+                <button
+                  type="button"
+                  className="btn-linklike"
+                  onClick={() => onOpenProfile(author.user_id)}
+                >
+                  {author.name}
+                </button>
+              ) : (
+                <span>{author.name}</span>
               )}
-              {post.tag && (
-                <span className="badge badge-accent" style={{ fontSize: "10px", padding: "1px 5px" }}>
-                  {post.tag}
-                </span>
+              {revealed && (
+                <CheckCircleIcon size={13} style={{ color: "var(--success)" }} />
               )}
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span className="post-author-handle">{post.authorHandle || "@engineer"}</span>
-              <span style={{ color: "var(--text-dim)", fontSize: "10px" }}>·</span>
-              <span className="post-timestamp">{post.timestamp}</span>
-            </div>
+            <span className="post-timestamp">{timeAgo(post.created_at)}</span>
           </div>
         </div>
 
-        {post.authorRole === "employer" ? (
-          <span className="badge badge-cream">Employer</span>
+        {revealed ? (
+          <span className="badge badge-success">Revealed</span>
         ) : (
-          <span className="badge badge-mist">Candidate</span>
+          <span className="badge badge-cream">Anonymous</span>
         )}
       </div>
 
-      {/* Post Text */}
-      <p className="post-content">{post.content}</p>
+      <p className="post-content">{post.text}</p>
 
-      {/* Milestone Box */}
-      {post.milestone && (
+      {(post.company_name || post.job_id) && (
         <div className="post-milestone-box">
           <div>
             <strong style={{ fontSize: "13px", color: "var(--text-main)" }}>
-              {post.milestone.title}
+              {post.company_name || "Referenced posting"}
             </strong>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-              Score: {post.milestone.score}/100 · Complexity: {post.milestone.complexity}
-            </div>
-          </div>
-
-          <span className="badge badge-success">Verified Defense</span>
-        </div>
-      )}
-
-      {/* Footer Actions Bar */}
-      <div className="post-footer-actions">
-        <button
-          type="button"
-          className={`post-action-btn ${post.isLiked ? "liked" : ""}`}
-          onClick={() => onLike(post.id)}
-        >
-          <HeartIcon size={14} fill={post.isLiked} />
-          <span>{post.likesCount || 0}</span>
-        </button>
-
-        <button
-          type="button"
-          className="post-action-btn"
-          onClick={() => setShowComments((prev) => !prev)}
-        >
-          <MessageIcon size={14} />
-          <span>{(post.comments || []).length} Replies</span>
-        </button>
-
-        <button
-          type="button"
-          className="post-action-btn"
-          onClick={handleShare}
-          title="Share post"
-        >
-          <ShareIcon size={14} />
-          <span>{sharedNotice ? "Copied" : "Share"}</span>
-        </button>
-      </div>
-
-      {/* Expandable Comments Section */}
-      {showComments && (
-        <div className="comments-section">
-          {(post.comments || []).map((c, i) => (
-            <div key={i} className="comment-row">
-              <Avatar name={c.author} size="sm" />
-              <div className="comment-bubble">
-                <div className="comment-author">{c.author}</div>
-                <div style={{ color: "var(--text-muted)" }}>{c.text}</div>
+            {post.job_id && (
+              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                Job {post.job_id}
               </div>
-            </div>
-          ))}
-
-          {/* New Comment Input */}
-          <form onSubmit={handleCommentSubmit} className="comment-input-row">
-            <input
-              type="text"
-              className="input-field"
-              style={{ padding: "6px 10px", fontSize: "12px" }}
-              placeholder="Write a technical reply..."
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="btn btn-secondary btn-sm"
-              disabled={!commentText.trim()}
-            >
-              <SendIcon size={12} />
-            </button>
-          </form>
+            )}
+          </div>
+          <span className="badge badge-mist">Posting</span>
         </div>
       )}
     </article>
