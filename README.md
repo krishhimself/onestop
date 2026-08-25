@@ -143,14 +143,20 @@ publishing again.
 
 ## Status
 
-**Built:** repo quiz end to end (generate → answer → grade), the company-side
-quiz gating job postings, anonymous-first candidate profiles, the reputation
-score (quiz depth + round history, shown as a breakdown), connections and a
-text-only community feed, job listing/application CRUD.
+**Built, end to end** — backend and UI, with the UI calling the API rather than
+standing in for it:
 
-**Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
-slot in): reputation feeding the reveal threshold, difficulty-calibrated
-scoring, bug-hunt mode.
+| Capability | Notes |
+|---|---|
+| Repo quiz: generate → answer → follow-up → grade | 206 backend tests, 15 frontend |
+| Per-question timer + silent paste recording | shared by both sides of the market |
+| Complexity tier alongside every score | rendered next to the breakdown, never alone |
+| JWT auth, register/login, employer vs candidate roles | role decides which flow you see |
+| Anonymous-first funnel | reveal latches at 70+, evaluated on profile read |
+| Company posting quiz gating publication | `PostJobPage` drives it; no ungated create path exists |
+| Reputation score as a breakdown | `ReputationPage`, rendered inside the profile view |
+| Connections + text-only post feed | instant mutual connect, text posts, nothing else |
+| Job listing + applications | |
 
 ### Community: what is deliberately absent
 
@@ -169,6 +175,30 @@ An unrevealed candidate is a pseudonym in the feed and in a connections list for
 exactly as long as they are one on their profile: names are resolved at read time
 from `users`, and an unrevealed one is never in the payload at all.
 
+The feed UI draws no control for any of them. A like button with nothing behind it
+is a claim the platform cannot keep, so the absence is visible rather than faked.
+
+## Roadmap
+
+Not built — each of these is missing a schema, a service, or a route. Listed here
+so the Status table above stays a claim about what runs rather than what is
+intended.
+
+- **Reputation feeding the reveal threshold.** `compute_reputation()` exists;
+  `meets_reveal_threshold()` is still its own placeholder at one graded quiz ≥ 70.
+  Deliberately unconnected — the reveal is a one-way latch on someone's identity
+  and the score's weights are still guesses. See `docs/ARCHITECTURE.md`.
+- **Difficulty-calibrated scoring**, per the limitation above. Needs answer data
+  across many candidates before there is anything to calibrate against.
+- **Server-issued timestamps** for the quiz clock, so elapsed time is computed
+  server-side instead of trusting a client-supplied `seconds_left`.
+- **Bug-hunt mode** — the company-side counterpart to the repo quiz. Not designed.
+- **Direct messages**, threaded replies, engagement counters, media in posts, and
+  approval-required connections. Each is a schema change on purpose; see the
+  section above for why they are absent rather than pending.
+- **Score decay** over time, so a two-year-old quiz result does not read like a
+  current one. Not designed.
+
 ## Running locally
 
 ### Backend
@@ -176,9 +206,27 @@ from `users`, and an unrevealed one is never in the payload at all.
 cd backend
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in MONGO_URI, GEMINI_API_KEY
+cp .env.example .env   # see the table below
 uvicorn app.main:app --reload
 ```
+
+Everything in `.env` is read through `app/core/config.py` (pydantic-settings);
+nothing outside that file calls `os.getenv()`. Every key has a default, so the
+app boots with an empty `.env` — the defaults are what let it boot, not what
+make it work.
+
+| Key | Required | Default | Notes |
+|---|---|---|---|
+| `MONGO_URI` | yes | `mongodb://localhost:27017` | Atlas URI or a local mongod. |
+| `GEMINI_API_KEY` | yes | empty | Every quiz route fails without it. |
+| `GEMINI_MODEL` | no | `gemini-3.6-flash` | Confirm the current name in Google AI Studio. |
+| `GITHUB_TOKEN` | no | empty | Unauthenticated GitHub allows 60 requests/hr, which one person testing can exhaust; any token raises it to 5000. No scopes needed — only public repos are read. |
+| `JWT_SECRET` | **in any real deployment** | `dev-only-insecure-secret-change-me` | Signs access tokens. The default exists so dev and CI boot; anything issuing tokens a real user holds must override it. |
+| `JWT_ALGORITHM` / `JWT_EXPIRE_MINUTES` | no | `HS256` / `720` | Rarely worth changing. |
+
+The Gemini integration still runs on the legacy `google-generativeai` SDK. The
+migration to `google-genai` has **not** happened; `integrations/gemini_client.py`
+is the only importer, which is what keeps it a one-file change when it does.
 
 ### Frontend
 ```bash
@@ -195,5 +243,7 @@ docker compose up --build
 
 ## Tests
 ```bash
-cd backend && pytest tests
+cd backend && pytest tests      # 206 tests
+cd frontend && npm test         # node --test: pasteDetect, profile display
 ```
+Both are what CI runs (`.github/workflows/ci.yml`), alongside `npm run build`.

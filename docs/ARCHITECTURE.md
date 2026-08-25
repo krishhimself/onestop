@@ -125,7 +125,10 @@ The components are part of the response rather than an expansion of it. One
 blended figure gets read as a measure of engineering ability, and it is not one:
 a 92 average across one quiz and a 92 across six are different claims, and only
 `quiz_count` says so. `features/reputation/ReputationPage.jsx` renders them in a
-single return for the same reason `ScoreResult` does.
+single return for the same reason `ScoreResult` does, and `ProfilePage` embeds that
+component rather than restating the numbers: one copy of the rule is the only way it
+stays true. Identity belongs to the profile view, what was demonstrated belongs to
+this one.
 
 Which statuses count as a round reached is the service's decision, not the
 repository's — `count_applications_with_status()` only counts what it is handed.
@@ -146,8 +149,21 @@ shared/
 Adding a feature = a new folder under `features/`. Nothing in `shared/`
 should ever import from a `features/` folder — dependencies point inward.
 
+**A page that renders data it did not fetch is the failure mode to watch for.** The
+2026-08-25 redesign briefly left three screens rendering mock arrays while their
+`api.js` clients sat unused next to them — the build stayed green, the tests stayed
+green, and the app demoed fine, because nothing about a hardcoded array is a type
+error. `features/jobs/api.js` also grew a `createJob()` posting to `/jobs/`, a route
+that does not exist precisely so that it cannot. If a `const INITIAL_*` array appears
+next to a feature's `api.js` again, that is the same regression.
+
 ## What's next architecturally (not yet built)
 
+- **A test that a screen actually calls its API.** Nothing in either suite would
+  have caught the three mock screens: the backend tests passed because the backend
+  was right, and the frontend has no rendering tests at all. The cheapest guard is
+  a render test per feature page asserting its `api.js` was called — that, or the
+  discipline of never letting a page hold its own data.
 - Wiring the reputation score into the reveal. `compute_reputation()` now exists
   and combines quiz depth with round history, but `meets_reveal_threshold()` is
   still its own placeholder: one graded quiz at `REVEAL_MIN_SCORE` or better. The
@@ -159,5 +175,10 @@ should ever import from a `features/` folder — dependencies point inward.
 - Difficulty-calibrated scoring, per the README. `comprehension` is a flat mean
   of defended scores, so six trivial repos average the same as six hard ones.
   That needs answer data across many candidates before it can be calibrated.
-- Company-side bug-hunt and community threads, per the README status list.
-  Nothing about them is designed yet.
+- Server-issued generation timestamps for the quiz clock. Today `seconds_left`
+  arrives from the client and is stored as given. The fix is a `generated_at` on
+  the attempt and elapsed time computed in the service, which changes the quiz
+  and company-quiz schemas together — the one item here that is a real schema
+  change rather than a new function.
+- Company-side bug-hunt and community threads, per the README roadmap. Nothing
+  about them is designed yet.
