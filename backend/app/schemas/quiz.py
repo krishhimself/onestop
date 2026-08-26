@@ -14,6 +14,18 @@ class QuizGenerateRequest(BaseModel):
     # cannot attribute a quiz attempt to somebody else by editing the body.
 
 
+class Day1QuizGenerateRequest(BaseModel):
+    job_id: str
+
+
+class Day1QuizGenerateResponse(BaseModel):
+    quiz_id: str
+    job_id: str
+    repo_url: str
+    questions: List[QuizQuestion]
+    time_limit_seconds: int = TIME_LIMIT_SECONDS
+
+
 class QuizQuestion(BaseModel):
     id: str
     question: str

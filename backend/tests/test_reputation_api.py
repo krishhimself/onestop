@@ -14,7 +14,7 @@ from app.services import reputation_service
 
 client = TestClient(app)
 
-BREAKDOWN = {"overall": 66, "comprehension": 80, "quiz_count": 2, "rounds_reached": 1}
+BREAKDOWN = {"overall": 66, "comprehension": 80, "day1_readiness": 0, "quiz_count": 2, "rounds_reached": 1}
 
 
 def test_the_breakdown_survives_the_response_model(monkeypatch):

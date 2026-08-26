@@ -6,6 +6,7 @@ jobs collection:
   "role_title": str,
   "description": str,
   "tech_stack": list[str],
+  "trial_repo_url": str | None, # optional public codebase attached for Day-1 readiness quiz
   "posted_by": str,          # user_id of the employer who defended the quiz
   "company_quiz_id": str,    # the attempt that unlocked this posting
   "posted_at": datetime,
@@ -23,6 +24,8 @@ applications collection:
   "job_id": str,
   "user_id": str,
   "quiz_score_id": str | None,
+  "day1_quiz_id": str | None,
+  "day1_score": float | None,
   "status": "applied" | "reviewed" | "rejected" | "accepted",
 }
 

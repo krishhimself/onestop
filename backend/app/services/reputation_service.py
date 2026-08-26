@@ -123,6 +123,9 @@ async def compute_reputation(user_id: str) -> dict:
     scores = await quiz_repository.graded_scores_for_user(user_id)
     comprehension = round(sum(scores) / len(scores)) if scores else 0
 
+    day1_scores = await quiz_repository.graded_day1_scores_for_user(user_id)
+    day1_readiness = round(sum(day1_scores) / len(day1_scores)) if day1_scores else 0
+
     rounds_reached = await job_repository.count_applications_with_status(
         user_id, ROUND_STATUSES
     )
@@ -132,6 +135,7 @@ async def compute_reputation(user_id: str) -> dict:
         "overall": round(comprehension * COMPREHENSION_WEIGHT
                          + rounds_component * ROUNDS_WEIGHT),
         "comprehension": comprehension,
+        "day1_readiness": day1_readiness,
         "rounds_reached": rounds_reached,
         "quiz_count": len(scores),
     }

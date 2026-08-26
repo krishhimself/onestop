@@ -13,6 +13,7 @@ class ReputationResponse(BaseModel):
 
     user_id: str
     overall: int
-    comprehension: int  # mean of every defended quiz score, 0 with no quizzes
+    comprehension: int  # mean of every defended candidate quiz score, 0 with no quizzes
+    day1_readiness: int = 0  # mean of every defended Day-1 readiness quiz score, 0 with no Day-1 quizzes
     quiz_count: int     # how many defended scores that mean is over
     rounds_reached: int  # applications that moved past the pile

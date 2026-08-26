@@ -78,3 +78,24 @@ def test_missing_questions_key_yields_empty_list():
 ])
 def test_strip_code_fence(raw, expected):
     assert _strip_code_fence(raw) == expected
+
+
+async def test_generate_day1_questions_returns_parsed_list(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.integrations import gemini_client
+
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps({
+        "questions": [
+            {"question": "What is the purpose of router.py?", "file_reference": "router.py", "category": "orientation"},
+            {"question": "Where would you add a new endpoint?", "file_reference": "endpoints/", "category": "navigation"},
+        ]
+    })
+    mock_model = MagicMock()
+    mock_model.generate_content_async = AsyncMock(return_value=mock_resp)
+    monkeypatch.setattr(gemini_client, "_model", lambda: mock_model)
+
+    questions = await gemini_client.generate_day1_questions([{"path": "router.py", "content": "..."}])
+    assert len(questions) == 2
+    assert questions[0]["category"] == "orientation"
+    assert questions[1]["category"] == "navigation"

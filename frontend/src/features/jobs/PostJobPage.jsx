@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import JobDraftForm from "./components/JobDraftForm";
 import PostingResult from "./components/PostingResult";
-// The timed, paste-recording question card is shared with the candidate quiz on
-// purpose: both sides of the market must run under the same clock and the same
-// silent paste detection, and two copies would drift. If a third feature needs it,
-// move it to shared/components rather than copying it again.
 import QuestionCard from "../quiz/components/QuestionCard";
 import {
   generateCompanyQuiz,
   submitCompanyFollowUp,
   submitCompanyQuiz,
 } from "./api";
+import {
+  ShieldLockIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  JobsIcon,
+} from "../../shared/components/Icons";
 
-const EMPTY_DRAFT = { company_name: "", role_title: "", description: "", tech_stack: "" };
+const EMPTY_DRAFT = { company_name: "", role_title: "", description: "", tech_stack: "", trial_repo_url: "" };
 
-export default function PostJobPage({ onUnauthorized }) {
+export default function PostJobPage({ onUnauthorized, onCancel, onViewJobs }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -55,8 +57,6 @@ export default function PostJobPage({ onUnauthorized }) {
     setLoading(true);
     reset();
     try {
-      // The stack is typed as one line and split here; the backend stores the list
-      // it was given and asks which of those the hire actually touches.
       const data = await generateCompanyQuiz({
         company_name: draft.company_name.trim(),
         role_title: draft.role_title.trim(),
@@ -65,11 +65,12 @@ export default function PostJobPage({ onUnauthorized }) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
+        ...(draft.trial_repo_url?.trim() ? { trial_repo_url: draft.trial_repo_url.trim() } : {}),
       });
       setQuiz(data);
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
-      setError(e.message);
+      setError(e.message || "Failed to generate audit questions from that posting.");
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,6 @@ export default function PostJobPage({ onUnauthorized }) {
     setLoading(true);
     setError("");
     try {
-      // Every question is sent, answered or not — a blank answer is itself a result.
       const payload = quiz.questions.map((q) => ({
         question_id: q.id,
         answer: answers[q.id] || "",
@@ -89,10 +89,11 @@ export default function PostJobPage({ onUnauthorized }) {
         flagged_paste: inputSignal.current[q.id]?.flagged_paste ?? false,
         paste_delta: inputSignal.current[q.id]?.paste_delta ?? 0,
       }));
-      setFollowup(await submitCompanyQuiz(quiz.quiz_id, payload));
+      const res = await submitCompanyQuiz(quiz.quiz_id, payload);
+      setFollowup(res);
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
-      setError(e.message);
+      setError(e.message || "Submission failed.");
       sent.current.answers = false;
     } finally {
       setLoading(false);
@@ -106,12 +107,15 @@ export default function PostJobPage({ onUnauthorized }) {
     setError("");
     try {
       const id = followup.followup.id;
-      setResult(
-        await submitCompanyFollowUp(quiz.quiz_id, followupAnswer, timeLeft.current[id] ?? null)
+      const res = await submitCompanyFollowUp(
+        quiz.quiz_id,
+        followupAnswer,
+        timeLeft.current[id] ?? null
       );
+      setResult(res);
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
-      setError(e.message);
+      setError(e.message || "Grading failed.");
       sent.current.followup = false;
     } finally {
       setLoading(false);
@@ -133,12 +137,25 @@ export default function PostJobPage({ onUnauthorized }) {
   const drafting = !quiz && !result;
 
   return (
-    <div className="container">
-      <h1>Post a Job</h1>
-      <p className="tagline">
-        Write the posting, then answer for it. Postings go live only if they describe a
-        role you can actually account for.
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* Top Header */}
+      <div className="page-hero">
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+          <h1 className="page-hero-title">
+            Company-Side Technical Audit
+          </h1>
+          <span className="badge badge-accent">Proof-Gated Publishing</span>
+        </div>
+        <p className="page-hero-desc">
+          Write the posting, then defend it. Roles are published only if you score 70+ on live architectural questions generated from your draft.
+        </p>
+      </div>
+
+      {error && (
+        <div className="alert alert-error">
+          <span>{error}</span>
+        </div>
+      )}
 
       {drafting && (
         <JobDraftForm
@@ -146,41 +163,62 @@ export default function PostJobPage({ onUnauthorized }) {
           onChange={setDraft}
           onSubmit={handleGenerate}
           loading={loading}
+          onCancel={onCancel}
         />
       )}
 
-      {error && <p className="error">{error}</p>}
-
+      {/* Step 2: Main Question Interrogation */}
       {quiz && !followup && !result && (
-        <div className="quiz">
-          <p className="rules">
-            {limit}s per question · answers lock when the timer runs out · your draft is
-            held until this is graded
-          </p>
-          {quiz.questions.map((q) => (
-            <QuestionCard
-              key={q.id}
-              question={q}
-              answer={answers[q.id]}
-              timeLimit={limit}
-              onTick={(id, s) => (timeLeft.current[id] = s)}
-              onExpire={markExpired}
-              onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
-              onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
-            />
-          ))}
-          <button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Submitting..." : "Submit Answers"}
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div className="card alert-info" style={{ padding: "12px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+              <ClockIcon size={16} style={{ color: "var(--accent)" }} />
+              <span>
+                <strong>{limit}s per question</strong> · Answers lock on timer expiry · Draft is held server-side until graded.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {quiz.questions.map((q) => (
+              <QuestionCard
+                key={q.id}
+                question={q}
+                answer={answers[q.id] || ""}
+                timeLimit={limit}
+                onTick={(id, s) => (timeLeft.current[id] = s)}
+                onExpire={markExpired}
+                onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
+                onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
+              />
+            ))}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "6px" }}>
+            {onCancel && (
+              <button className="btn btn-secondary" onClick={onCancel} disabled={loading}>
+                Cancel
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+              {loading ? "Submitting for jury review..." : "Submit Answers & Open Follow-up"}
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Step 3: Adaptive Follow-up Question Defense */}
       {followup && !result && (
-        <div className="quiz">
-          <p className="rules">
-            One follow-up on what you just wrote. Same {followup.time_limit_seconds}s, same
-            rules.
-          </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div className="card alert-info" style={{ padding: "14px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+              <ShieldLockIcon size={16} style={{ color: "var(--accent)" }} />
+              <span>
+                <strong>Adaptive Follow-up:</strong> The jury is interrogating your specific phrasing. Defend your answer within {followup.time_limit_seconds}s.
+              </span>
+            </div>
+          </div>
+
           <QuestionCard
             question={{ id: followup.followup.id, question: followup.followup.question }}
             answer={followupAnswer}
@@ -189,13 +227,24 @@ export default function PostJobPage({ onUnauthorized }) {
             onExpire={markExpired}
             onAnswerChange={(_, val) => setFollowupAnswer(val)}
           />
-          <button onClick={handleFollowUp} disabled={loading}>
-            {loading ? "Grading..." : "Submit Follow-up"}
-          </button>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+            <button className="btn btn-primary" onClick={handleFollowUp} disabled={loading}>
+              {loading ? "Grading and verifying..." : "Submit Follow-up Defense"}
+            </button>
+          </div>
         </div>
       )}
 
-      {result && <PostingResult result={result} onRetry={reset} />}
+      {/* Step 4: Final Outcome */}
+      {result && (
+        <PostingResult
+          result={result}
+          onRetry={reset}
+          onViewJobs={onViewJobs}
+        />
+      )}
     </div>
   );
 }
+

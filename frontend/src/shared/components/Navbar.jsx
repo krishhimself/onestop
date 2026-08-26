@@ -18,12 +18,17 @@ export default function Navbar({
   const role = userProfile?.role || "candidate";
   const name = userProfile?.revealed ? userProfile?.name || "Candidate" : "Anonymous Candidate";
   const revealed = Boolean(userProfile?.revealed);
+  const isEmployer = role === "employer";
 
   return (
     <header className="navbar">
       <div className="navbar-inner">
         {/* Brand */}
-        <div className="brand-container" onClick={() => onSelectTab("quiz")}>
+        <div
+          className="brand-container"
+          onClick={() => onSelectTab(isEmployer ? "jobs" : "quiz")}
+          style={{ cursor: "pointer" }}
+        >
           <div className="brand-logo-badge">
             <BrandLogoIcon size={18} />
           </div>
@@ -32,15 +37,27 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Center Tabs */}
+        {/* Center Tabs: Role-Gated */}
         <nav className="nav-tabs">
-          <button
-            className={`nav-tab-btn ${activeTab === "quiz" ? "active" : ""}`}
-            onClick={() => onSelectTab("quiz")}
-          >
-            <QuizIcon size={15} />
-            <span>Repo Quiz</span>
-          </button>
+          {!isEmployer && (
+            <button
+              className={`nav-tab-btn ${activeTab === "quiz" ? "active" : ""}`}
+              onClick={() => onSelectTab("quiz")}
+            >
+              <QuizIcon size={15} />
+              <span>Repo Quiz</span>
+            </button>
+          )}
+
+          {isEmployer && (
+            <button
+              className={`nav-tab-btn ${activeTab === "jobs" ? "active" : ""}`}
+              onClick={() => onSelectTab("jobs")}
+            >
+              <JobsIcon size={15} />
+              <span>Post a Job</span>
+            </button>
+          )}
 
           <button
             className={`nav-tab-btn ${activeTab === "feed" ? "active" : ""}`}
@@ -55,16 +72,18 @@ export default function Navbar({
             onClick={() => onSelectTab("reputation")}
           >
             <ReputationIcon size={15} />
-            <span>Reputation</span>
+            <span>{isEmployer ? "Profile" : "Reputation"}</span>
           </button>
 
-          <button
-            className={`nav-tab-btn ${activeTab === "jobs" ? "active" : ""}`}
-            onClick={() => onSelectTab("jobs")}
-          >
-            <JobsIcon size={15} />
-            <span>Jobs</span>
-          </button>
+          {!isEmployer && (
+            <button
+              className={`nav-tab-btn ${activeTab === "jobs" ? "active" : ""}`}
+              onClick={() => onSelectTab("jobs")}
+            >
+              <JobsIcon size={15} />
+              <span>Jobs</span>
+            </button>
+          )}
         </nav>
 
         {/* Right User Bar */}

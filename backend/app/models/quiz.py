@@ -6,6 +6,8 @@ what a quiz_attempts document looks like.
 quiz_attempts collection:
 {
   "_id": str (uuid4),
+  "type": "candidate" | "day1", # candidate repo comprehension vs Day-1 readiness quiz
+  "job_id": str | None,         # attached job_id if type == "day1"
   "repo_url": str,
   "user_id": str,  # owner; set from the access token, never from the request body.
                    # Every read after creation goes through
@@ -13,7 +15,7 @@ quiz_attempts collection:
                    # belonging to anyone else.
   "questions": [
     {"id": str, "question": str, "file_reference": str | None,
-     "category": "problem" | "logic" | "stack" | "usage" | None}
+     "category": "problem" | "logic" | "stack" | "usage" | "orientation" | "navigation" | "blast_radius" | "data_flow" | None}
   ],
   "complexity": {
     "tier": "trivial" | "moderate" | "complex" | "unknown",

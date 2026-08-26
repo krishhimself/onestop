@@ -62,6 +62,37 @@ def test_generate_requires_repo_url():
     assert client.post("/api/v1/quiz/generate", json={}).status_code == 422
 
 
+# --- day-1 generate --------------------------------------------------------
+
+def test_generate_day1_returns_questions_and_job_id(monkeypatch):
+    monkeypatch.setattr(quiz_service, "create_day1_quiz", AsyncMock(return_value={
+        "quiz_id": "dquiz-1", "job_id": "j1", "repo_url": "https://github.com/org/repo",
+        "questions": [{"id": "dq1", "question": "Where does data enter?", "category": "data_flow"}],
+        "time_limit_seconds": 75,
+    }))
+    resp = client.post("/api/v1/quiz/day1/generate", json={"job_id": "j1"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["quiz_id"] == "dquiz-1"
+    assert body["job_id"] == "j1"
+    assert body["repo_url"] == "https://github.com/org/repo"
+    assert body["questions"][0]["category"] == "data_flow"
+    assert body["time_limit_seconds"] == 75
+
+
+def test_generate_day1_maps_job_not_found_to_404(monkeypatch):
+    monkeypatch.setattr(quiz_service, "create_day1_quiz", AsyncMock(side_effect=LookupError("job_not_found")))
+    resp = client.post("/api/v1/quiz/day1/generate", json={"job_id": "missing"})
+    assert resp.status_code == 404
+
+
+def test_generate_day1_maps_no_trial_repo_to_400(monkeypatch):
+    monkeypatch.setattr(quiz_service, "create_day1_quiz", AsyncMock(side_effect=ValueError("no_trial_repo")))
+    resp = client.post("/api/v1/quiz/day1/generate", json={"job_id": "j1"})
+    assert resp.status_code == 400
+
+
 # --- submit ----------------------------------------------------------------
 
 def test_submit_returns_a_followup_and_no_score(monkeypatch):

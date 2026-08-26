@@ -63,6 +63,7 @@ DRAFT = {
     "role_title": "Backend Engineer",
     "description": "Own the ingest pipeline end to end.",
     "tech_stack": ["Python", "MongoDB"],
+    "trial_repo_url": None,
 }
 
 

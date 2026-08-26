@@ -105,6 +105,42 @@ CODE:
     return _parse_quiz_payload(_strip_code_fence(response.text))
 
 
+async def generate_day1_questions(files: list[dict], n_questions: int = 5) -> list[dict]:
+    """
+    Generate questions testing whether a developer reading this unfamiliar codebase
+    for the first time can orient quickly.
+
+    Grounded in the actual files and answerable only by genuinely reading them:
+      orientation  - what a given module or component's purpose is
+      navigation   - where a specific change or new feature would need to be made
+      blast_radius - what would break if a particular piece or invariant were removed
+      data_flow    - how data flows between two files or layers
+    """
+    file_context = "\n\n".join(f"--- {f['path']} ---\n{f['content']}" for f in files)
+
+    prompt = f"""You are assessing a software engineer who has just opened this codebase for the first time.
+Ask {n_questions} questions that test how fast and accurately they can orient themselves in an unfamiliar codebase.
+
+The goal is to test Day-1 navigation and comprehension — whether someone genuinely reading these files can find their way around, understand the architecture, and reason about how pieces connect.
+
+Cover these four core Day-1 orientation areas:
+  orientation  - what a given module, class, or service's core purpose is
+  navigation   - where in the codebase a specific change or feature addition would need to be made
+  blast_radius - what would break or fail if a particular function, schema, or invariant were removed or altered
+  data_flow    - how data flows between two specific files, services, or layers
+
+Ground each question in the actual files provided. The questions must be answerable ONLY by genuinely reading and understanding the provided code, not general trivia, syntax questions, or textbook definitions.
+
+Return ONLY a JSON object with a "questions" list, no markdown prose:
+{{"questions": [{{"question": "...", "file_reference": "path/to/file.py", "category": "orientation" | "navigation" | "blast_radius" | "data_flow"}}]}}
+
+CODEBASE:
+{file_context}
+"""
+    response = await _model().generate_content_async(prompt)
+    return _parse_questions(json.loads(_strip_code_fence(response.text)))
+
+
 # How the follow-up addresses whoever is answering. The generator itself is identical
 # for both sides of the market - only the framing changes, so a company defending its
 # own posting is pushed on exactly as hard as a candidate defending their code.

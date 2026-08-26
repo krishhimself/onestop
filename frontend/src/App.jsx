@@ -17,6 +17,7 @@ import {
   ShieldLockIcon,
   CheckCircleIcon,
   ReputationIcon,
+  PlusIcon,
 } from "./shared/components/Icons";
 
 export default function App() {
@@ -75,12 +76,16 @@ export default function App() {
   const name = displayName(userProfile);
   const revealed = Boolean(userProfile?.revealed);
   const role = userProfile?.role || getRole() || "candidate";
+  const isEmployer = role === "employer";
+
+  // Prevent role mismatch on tab (e.g. employer on repo quiz or candidate on employer post flow)
+  const currentTab = isEmployer && tab === "quiz" ? "jobs" : tab;
 
   return (
     <div className="app-shell">
       {/* Top Navbar */}
       <Navbar
-        activeTab={tab}
+        activeTab={currentTab}
         onSelectTab={setTab}
         userProfile={userProfile}
         onLogout={() => {
@@ -90,7 +95,7 @@ export default function App() {
       />
 
       {/* Main 3-Column Layout */}
-      <main className={`main-layout ${tab === "quiz" ? "no-right-col" : ""}`}>
+      <main className={`main-layout ${currentTab === "quiz" ? "no-right-col" : ""}`}>
         {/* LEFT COLUMN: Profile & Verification Mini-Card */}
         <aside style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div className="card" style={{ padding: "18px", textAlign: "center" }}>
@@ -108,11 +113,16 @@ export default function App() {
               {name}
             </h3>
             <p style={{ fontSize: "12px", color: "var(--text-subtle)", marginBottom: "10px" }}>
-              {role === "employer" ? "Verified Employer" : "Software Engineer"}
+              {isEmployer ? "Verified Employer" : "Software Engineer"}
             </p>
 
             <div style={{ display: "inline-flex", marginBottom: "14px" }}>
-              {revealed ? (
+              {isEmployer ? (
+                <span className="badge badge-accent">
+                  <CheckCircleIcon size={11} />
+                  Verified Employer
+                </span>
+              ) : revealed ? (
                 <span className="badge badge-success">
                   <CheckCircleIcon size={11} />
                   Identity Revealed
@@ -127,9 +137,9 @@ export default function App() {
 
             <div style={{ borderTop: "1px solid var(--mist-border-light)", paddingTop: "10px", textAlign: "left", fontSize: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", color: "var(--text-muted)" }}>
-                <span>Identity Status:</span>
-                <strong style={{ color: revealed ? "var(--success)" : "var(--cream-text)" }}>
-                  {revealed ? "Unlocked" : "Locked (<70)"}
+                <span>Account Status:</span>
+                <strong style={{ color: isEmployer || revealed ? "var(--success)" : "var(--cream-text)" }}>
+                  {isEmployer ? "Employer Gate Active" : revealed ? "Unlocked" : "Locked (<70)"}
                 </strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}>
@@ -140,14 +150,25 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setTab("reputation")}
-              style={{ width: "100%", marginTop: "12px" }}
-            >
-              <ReputationIcon size={13} />
-              <span>View Full Reputation</span>
-            </button>
+            {isEmployer ? (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setTab("jobs")}
+                style={{ width: "100%", marginTop: "12px" }}
+              >
+                <PlusIcon size={13} />
+                <span>Post a Job</span>
+              </button>
+            ) : (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setTab("reputation")}
+                style={{ width: "100%", marginTop: "12px" }}
+              >
+                <ReputationIcon size={13} />
+                <span>View Full Reputation</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Platform Values Widget */}
@@ -166,29 +187,29 @@ export default function App() {
 
         {/* CENTER COLUMN: Interactive Workspace */}
         <section style={{ minWidth: 0 }}>
-          {tab === "quiz" && (
+          {!isEmployer && currentTab === "quiz" && (
             <QuizPage
               onUnauthorized={onUnauthorized}
               onNavigateReputation={() => setTab("reputation")}
             />
           )}
 
-          {tab === "feed" && (
+          {currentTab === "feed" && (
             <FeedPage
               userProfile={userProfile}
-              onNavigateQuiz={() => setTab("quiz")}
+              onNavigateQuiz={() => setTab(isEmployer ? "jobs" : "quiz")}
               onNavigateReputation={() => setTab("reputation")}
             />
           )}
 
-          {tab === "reputation" && (
+          {currentTab === "reputation" && (
             <ProfilePage
               onUnauthorized={onUnauthorized}
-              onNavigateQuiz={() => setTab("quiz")}
+              onNavigateQuiz={() => setTab(isEmployer ? "jobs" : "quiz")}
             />
           )}
 
-          {tab === "jobs" && (
+          {currentTab === "jobs" && (
             <JobsPage
               onUnauthorized={onUnauthorized}
               userProfile={userProfile}

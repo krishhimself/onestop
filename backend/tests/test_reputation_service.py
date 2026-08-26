@@ -19,11 +19,13 @@ from app.services.reputation_service import (
 )
 
 
-def patch_history(monkeypatch, scores, rounds=0, user={"_id": "u1"}):
+def patch_history(monkeypatch, scores, rounds=0, user={"_id": "u1"}, day1_scores=None):
     monkeypatch.setattr(reputation_service.user_repository, "get_user_by_id",
                         AsyncMock(return_value=user))
     monkeypatch.setattr(reputation_service.quiz_repository, "graded_scores_for_user",
                         AsyncMock(return_value=scores))
+    monkeypatch.setattr(reputation_service.quiz_repository, "graded_day1_scores_for_user",
+                        AsyncMock(return_value=day1_scores if day1_scores is not None else []))
     counted = AsyncMock(return_value=rounds)
     monkeypatch.setattr(reputation_service.job_repository,
                         "count_applications_with_status", counted)
@@ -39,11 +41,12 @@ async def test_two_graded_quizzes_and_an_accepted_application(monkeypatch):
     out = await reputation_service.compute_reputation("u1")
 
     assert out["comprehension"] == 80, "mean of 88 and 72"
+    assert out["day1_readiness"] == 0
     assert out["quiz_count"] == 2
     assert out["rounds_reached"] == 1
     # 80 * 0.75 + (1/4 * 100) * 0.25 = 60 + 6.25
     assert out["overall"] == 66
-    assert set(out) == {"overall", "comprehension", "quiz_count", "rounds_reached"}
+    assert set(out) == {"overall", "comprehension", "day1_readiness", "quiz_count", "rounds_reached"}
 
 
 async def test_a_brand_new_user_scores_zero_without_erroring(monkeypatch):
@@ -51,7 +54,18 @@ async def test_a_brand_new_user_scores_zero_without_erroring(monkeypatch):
 
     out = await reputation_service.compute_reputation("u1")
 
-    assert out == {"overall": 0, "comprehension": 0, "quiz_count": 0, "rounds_reached": 0}
+    assert out == {"overall": 0, "comprehension": 0, "day1_readiness": 0, "quiz_count": 0, "rounds_reached": 0}
+
+
+async def test_day1_readiness_is_kept_separate_and_never_blended_into_comprehension(monkeypatch):
+    """Day-1 Readiness measures orienting in unfamiliar code and is never mixed into candidate repo comprehension."""
+    patch_history(monkeypatch, scores=[90.0], rounds=0, day1_scores=[70.0, 80.0])
+
+    out = await reputation_service.compute_reputation("u1")
+
+    assert out["comprehension"] == 90
+    assert out["day1_readiness"] == 75, "mean of 70 and 80"
+    assert out["overall"] == round(90 * COMPREHENSION_WEIGHT)
 
 
 # --- components -------------------------------------------------------------

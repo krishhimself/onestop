@@ -4,23 +4,34 @@ export function fetchJobs() {
   return request("/jobs/");
 }
 
-export function createJob(jobData) {
-  return request("/jobs/", {
-    method: "POST",
-    body: JSON.stringify(jobData),
-  });
-}
-
-export function applyToJob(jobId, userId, quizScoreId = null) {
+export function applyToJob(jobId, userId, quizScoreId = null, day1QuizId = null, day1Score = null) {
   return request("/jobs/apply", {
     method: "POST",
     body: JSON.stringify({
       job_id: jobId,
       user_id: userId,
       ...(quizScoreId ? { quiz_score_id: quizScoreId } : {}),
+      ...(day1QuizId ? { day1_quiz_id: day1QuizId } : {}),
+      ...(day1Score !== null && day1Score !== undefined ? { day1_score: day1Score } : {}),
     }),
   });
 }
+
+export function fetchEmployerApplications() {
+  return request("/jobs/applications");
+}
+
+export function fetchCandidateApplications() {
+  return request("/jobs/my-applications");
+}
+
+export function updateApplicationStatus(appId, status) {
+  return request(`/jobs/applications/${appId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 
 // --- company quiz ---------------------------------------------------------
 //

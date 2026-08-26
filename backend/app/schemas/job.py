@@ -1,6 +1,6 @@
 """Request/response DTOs for the jobs endpoints."""
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -17,6 +17,7 @@ class JobCreateRequest(BaseModel):
     role_title: str
     description: str
     tech_stack: List[str] = []
+    trial_repo_url: Optional[str] = None
 
 
 class JobResponse(BaseModel):
@@ -25,6 +26,7 @@ class JobResponse(BaseModel):
     role_title: str
     description: str
     tech_stack: List[str]
+    trial_repo_url: Optional[str] = None
     posted_at: Optional[datetime] = None
 
 
@@ -32,6 +34,41 @@ class ApplicationRequest(BaseModel):
     job_id: str
     user_id: str
     quiz_score_id: Optional[str] = None
+    day1_quiz_id: Optional[str] = None
+    day1_score: Optional[float] = None
+
+
+class ApplicationStatusUpdateRequest(BaseModel):
+    status: Literal["applied", "reviewed", "accepted", "rejected"]
+
+
+class ApplicantReviewResponse(BaseModel):
+    id: str
+    job_id: str
+    role_title: str
+    company_name: str
+    user_id: str
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    revealed: bool
+    comprehension_score: Optional[float] = None
+    day1_score: Optional[float] = None
+    day1_quiz_id: Optional[str] = None
+    status: str
+    applied_at: Optional[datetime] = None
+
+
+class CandidateApplicationResponse(BaseModel):
+    id: str
+    job_id: str
+    role_title: str
+    company_name: str
+    tech_stack: List[str] = []
+    trial_repo_url: Optional[str] = None
+    status: str
+    day1_score: Optional[float] = None
+    applied_at: Optional[datetime] = None
+
 
 
 # --- company quiz ----------------------------------------------------------

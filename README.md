@@ -141,11 +141,28 @@ cannot be prepared in advance. Grading also cannot be replayed — an attempt is
 graded once, keeps the job id it produced, and a retried call returns that instead of
 publishing again.
 
+## The Day-1 Readiness Test
+
+Traditional technical interviews almost universally test **writing fresh code from scratch** — leetcode puzzles, greenfield take-homes, or blank-canvas live coding. But actual day-to-day software engineering is overwhelmingly **reading, navigating, and orienting in existing codebases** that the engineer did not write.
+
+The **Day-1 Readiness Test** measures the critical skill every conventional interview skips: how fast and accurately a developer can orient themselves when dropped into an unfamiliar codebase.
+
+### How it works
+
+1. **Employer attaches a trial repo**: When posting a role, employers can attach a public repository URL — their own production repo or any representative open-source codebase.
+2. **Unfamiliar codebase interrogation**: When a candidate applies, the platform fetches sample files from the employer's attached repo and generates questions across four Day-1 orientation areas:
+   - **orientation** — what a given module or service's core purpose is
+   - **navigation** — where in the codebase a specific feature addition or change would need to be made
+   - **blast radius** — what would fail or break if a particular function, schema, or invariant were altered
+   - **data flow** — how data moves and transforms between two specific files or architectural layers
+3. **Timed defense**: The candidate answers under the same per-question countdown clock with silent paste detection and an adaptive follow-up defense round.
+4. **Independent reputation component**: The graded Day-1 Readiness score is stored directly on the application document for the employer to review, and lands as an independent `day1_readiness` component in the candidate's platform reputation breakdown — **never blended into** the candidate repo comprehension score.
+
 ## Status
 
 **Built:** repo quiz end to end (generate → answer → grade), the company-side
-quiz gating job postings, anonymous-first candidate profiles, the reputation
-score (quiz depth + round history, shown as a breakdown), connections and a
+quiz gating job postings, the Day-1 Readiness Test for unfamiliar codebases attached to job postings,
+anonymous-first candidate profiles, the reputation score (comprehension + day-1 readiness + round history, shown as an unblended breakdown), connections and a
 text-only community feed, job listing/application CRUD.
 
 **Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these

@@ -7,6 +7,13 @@ export function generateQuiz(repoUrl) {
   });
 }
 
+export function generateDay1Quiz(jobId) {
+  return request("/quiz/day1/generate", {
+    method: "POST",
+    body: JSON.stringify({ job_id: jobId }),
+  });
+}
+
 // Records answers and opens the follow-up round — does not return a score.
 export function submitQuiz(quizId, answers) {
   return request("/quiz/submit", {

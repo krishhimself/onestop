@@ -41,7 +41,7 @@ PASS_SCORE = 70.0
 
 # Fields of the stored draft that describe the posting. Anything else on the attempt
 # (ownership, answers, grading) is bookkeeping and must not reach the jobs collection.
-DRAFT_FIELDS = ("company_name", "role_title", "description", "tech_stack")
+DRAFT_FIELDS = ("company_name", "role_title", "description", "tech_stack", "trial_repo_url")
 
 
 async def create_quiz(draft: dict, user_id: str) -> dict:

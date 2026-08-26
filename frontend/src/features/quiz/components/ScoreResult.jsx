@@ -1,7 +1,15 @@
 import React from "react";
 import { FileCodeIcon, ReputationIcon } from "../../../shared/components/Icons";
 
-export default function ScoreResult({ result, complexity, onReset, onViewReputation }) {
+export default function ScoreResult({
+  result,
+  complexity,
+  onReset,
+  onViewReputation,
+  isDay1 = false,
+  day1Job = null,
+  onCompleteDay1 = null,
+}) {
   const tier = complexity?.tier;
   const tierLabel = !tier ? null : tier === "unknown" ? "unrated" : tier;
   const feedback = Array.isArray(result?.feedback) ? result.feedback : [];
@@ -38,13 +46,17 @@ export default function ScoreResult({ result, complexity, onReset, onViewReputat
           </div>
 
           <h2 className="result-headline">
-            {isPassed
+            {isDay1
+              ? `Day-1 Readiness Score: ${score}/100`
+              : isPassed
               ? "Comprehension Verified"
               : "Quiz Evaluation Complete"}
           </h2>
 
           <p style={{ fontSize: "13px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-            {isPassed
+            {isDay1
+              ? `Your orientation speed and architectural understanding on ${day1Job?.role_title || "this role"}'s trial repository has been graded. This Day-1 score is attached directly to your application.`
+              : isPassed
               ? "Your explanations and defense demonstrated genuine code comprehension. Your profile now reveals your identity to employers."
               : "The evaluation grades your original reasoning together with how well you defended the adaptive follow-up question."}
           </p>
@@ -64,6 +76,12 @@ export default function ScoreResult({ result, complexity, onReset, onViewReputat
 
           {/* Actions */}
           <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+            {onCompleteDay1 && (
+              <button className="btn btn-primary" onClick={onCompleteDay1}>
+                <span>Submit Application with Day-1 Score</span>
+              </button>
+            )}
+
             {onViewReputation && (
               <button className="btn btn-primary" onClick={onViewReputation}>
                 <ReputationIcon size={14} />
@@ -73,7 +91,7 @@ export default function ScoreResult({ result, complexity, onReset, onViewReputat
 
             {onReset && (
               <button className="btn btn-secondary" onClick={onReset}>
-                <span>Test Another Repository</span>
+                <span>{isDay1 ? "Close" : "Test Another Repository"}</span>
               </button>
             )}
           </div>

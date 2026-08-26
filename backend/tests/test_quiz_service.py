@@ -214,3 +214,50 @@ async def test_owner_still_gets_through(monkeypatch, attempt):
 
     result = await quiz_service.grade_quiz("quiz-1", "defence", "u1")
     assert result["overall_score"] == 70
+
+
+# --- day-1 readiness quiz --------------------------------------------------
+
+async def test_create_day1_quiz_pulls_trial_repo_and_stores_day1_type(monkeypatch):
+    job = {
+        "_id": "job-1",
+        "company_name": "Employer Inc",
+        "role_title": "Backend Lead",
+        "trial_repo_url": "https://github.com/employer/service",
+    }
+    monkeypatch.setattr(quiz_service.job_repository, "get_job", AsyncMock(return_value=job))
+    monkeypatch.setattr(quiz_service.github_client, "fetch_repo_files",
+                        AsyncMock(return_value=[{"path": "main.py", "content": "print(1)"}]))
+    raw_q = [{"question": "What is the purpose of main.py?", "category": "orientation"}]
+    monkeypatch.setattr(quiz_service.gemini_client, "generate_day1_questions",
+                        AsyncMock(return_value=raw_q))
+    saved = AsyncMock()
+    monkeypatch.setattr(quiz_service.quiz_repository, "save_attempt", saved)
+
+    out = await quiz_service.create_day1_quiz("job-1", "cand-1")
+
+    assert out["quiz_id"]
+    assert out["job_id"] == "job-1"
+    assert out["repo_url"] == "https://github.com/employer/service"
+    assert out["questions"][0]["question"] == "What is the purpose of main.py?"
+    assert out["time_limit_seconds"] == 75
+
+    doc = saved.call_args.args[0]
+    assert doc["_id"] == out["quiz_id"]
+    assert doc["type"] == "day1"
+    assert doc["job_id"] == "job-1"
+    assert doc["user_id"] == "cand-1"
+    assert doc["status"] == "generated"
+
+
+async def test_create_day1_quiz_fails_if_job_missing(monkeypatch):
+    monkeypatch.setattr(quiz_service.job_repository, "get_job", AsyncMock(return_value=None))
+    with pytest.raises(LookupError):
+        await quiz_service.create_day1_quiz("missing-job", "u1")
+
+
+async def test_create_day1_quiz_fails_if_job_has_no_trial_repo(monkeypatch):
+    job = {"_id": "job-1", "company_name": "Acme", "trial_repo_url": None}
+    monkeypatch.setattr(quiz_service.job_repository, "get_job", AsyncMock(return_value=job))
+    with pytest.raises(ValueError):
+        await quiz_service.create_day1_quiz("job-1", "u1")

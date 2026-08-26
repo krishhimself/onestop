@@ -15,9 +15,9 @@ import { getUserId } from "../../shared/api/token";
  * attempt on one repo, this is about a history.
  */
 
-// [key, label, how to read it]. Sentence-case labels, no trailing colons.
 const COMPONENTS = [
-  ["comprehension", "Comprehension", "Mean of every defended quiz score."],
+  ["comprehension", "Comprehension", "Mean of every defended candidate repo quiz score."],
+  ["day1_readiness", "Day-1 Readiness", "Comprehension on unfamiliar codebases from job applications."],
   ["quiz_count", "Quizzes defended", "Attempts that survived a follow-up round."],
   ["rounds_reached", "Rounds reached", "Applications that moved past the pile."],
 ];

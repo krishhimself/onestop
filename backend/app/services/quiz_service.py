@@ -6,7 +6,7 @@ quiz) eventually calls into or reuses this.
 import uuid
 
 from app.integrations import gemini_client, github_client
-from app.repositories import quiz_repository
+from app.repositories import job_repository, quiz_repository
 from app.schemas.quiz import TIME_LIMIT_SECONDS
 
 
@@ -22,6 +22,7 @@ async def create_quiz(repo_url: str, user_id: str | None) -> dict:
     await quiz_repository.save_attempt(
         {
             "_id": quiz_id,
+            "type": "candidate",
             "repo_url": repo_url,
             "user_id": user_id,
             "questions": questions,
@@ -34,6 +35,49 @@ async def create_quiz(repo_url: str, user_id: str | None) -> dict:
         "repo_url": repo_url,
         "questions": questions,
         "complexity": complexity,
+        "time_limit_seconds": TIME_LIMIT_SECONDS,
+    }
+
+
+async def create_day1_quiz(job_id: str, user_id: str | None = None) -> dict:
+    """
+    Generate a Day-1 Readiness quiz from the job's attached trial repo.
+
+    Tests how quickly the candidate orients in an unfamiliar codebase they have
+    never seen before.
+    """
+    job = await job_repository.get_job(job_id)
+    if not job:
+        raise LookupError("job_not_found")
+
+    trial_repo_url = job.get("trial_repo_url")
+    if not trial_repo_url:
+        raise ValueError("no_trial_repo")
+
+    files = await github_client.fetch_repo_files(trial_repo_url)
+    if not files:
+        raise ValueError("no_source_files")
+
+    raw_questions = await gemini_client.generate_day1_questions(files)
+    questions = [{"id": str(uuid.uuid4()), **q} for q in raw_questions]
+
+    quiz_id = str(uuid.uuid4())
+    await quiz_repository.save_attempt(
+        {
+            "_id": quiz_id,
+            "type": "day1",
+            "job_id": job_id,
+            "repo_url": trial_repo_url,
+            "user_id": user_id,
+            "questions": questions,
+            "status": "generated",
+        }
+    )
+    return {
+        "quiz_id": quiz_id,
+        "job_id": job_id,
+        "repo_url": trial_repo_url,
+        "questions": questions,
         "time_limit_seconds": TIME_LIMIT_SECONDS,
     }
 

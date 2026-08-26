@@ -11,11 +11,16 @@ still lives in job_service.post_job(); company_quiz_service is its only caller.
 The quiz routes are employer-only and each attempt belongs to the account that
 generated it.
 """
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.dependencies import get_current_employer
+from app.core.dependencies import get_current_employer, get_current_user
 from app.schemas.job import (
+    ApplicantReviewResponse,
     ApplicationRequest,
+    ApplicationStatusUpdateRequest,
+    CandidateApplicationResponse,
     CompanyQuizFollowUpRequest,
     CompanyQuizGenerateRequest,
     CompanyQuizGenerateResponse,
@@ -37,6 +42,34 @@ async def list_jobs():
 async def apply(application: ApplicationRequest):
     app_id = await job_service.apply_to_job(application.dict())
     return {"id": app_id}
+
+
+@router.get("/applications", response_model=List[ApplicantReviewResponse])
+async def list_employer_applications(user: dict = Depends(get_current_employer)):
+    """List all candidate applications for postings owned by the employer."""
+    return await job_service.get_applications_for_employer(user["user_id"])
+
+
+@router.get("/my-applications", response_model=List[CandidateApplicationResponse])
+async def list_candidate_applications(user: dict = Depends(get_current_user)):
+    """List applications submitted by the currently logged-in candidate."""
+    return await job_service.get_applications_for_candidate(user["user_id"])
+
+
+@router.patch("/applications/{app_id}/status")
+async def update_application_status(
+    app_id: str,
+    req: ApplicationStatusUpdateRequest,
+    user: dict = Depends(get_current_employer),
+):
+    """Updates candidate application status (applied -> reviewed / accepted / rejected)."""
+    try:
+        return await job_service.update_application_status(app_id, req.status, user["user_id"])
+    except LookupError:
+        raise HTTPException(404, "Application not found")
+    except PermissionError:
+        raise HTTPException(403, "Not authorized to manage this job's applications")
+
 
 
 # --- company quiz ----------------------------------------------------------

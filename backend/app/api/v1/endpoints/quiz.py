@@ -15,6 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.dependencies import get_current_user
 
 from app.schemas.quiz import (
+    Day1QuizGenerateRequest,
+    Day1QuizGenerateResponse,
     FollowUpRequest,
     QuizGenerateRequest,
     QuizGenerateResponse,
@@ -33,6 +35,18 @@ async def generate(req: QuizGenerateRequest, user: dict = Depends(get_current_us
         return await quiz_service.create_quiz(req.repo_url, user["user_id"])
     except ValueError:
         raise HTTPException(400, "Couldn't read source files from that repo — make sure it's public.")
+
+
+@router.post("/day1/generate", response_model=Day1QuizGenerateResponse)
+async def generate_day1(req: Day1QuizGenerateRequest, user: dict = Depends(get_current_user)):
+    try:
+        return await quiz_service.create_day1_quiz(req.job_id, user["user_id"])
+    except LookupError:
+        raise HTTPException(404, "Job not found")
+    except ValueError as e:
+        if str(e) == "no_trial_repo":
+            raise HTTPException(400, "This job posting does not have an attached trial repository.")
+        raise HTTPException(400, "Couldn't read source files from the trial repository — make sure it's public.")
 
 
 @router.post("/submit", response_model=QuizSubmitResponse)

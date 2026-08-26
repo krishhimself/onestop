@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getProfile } from "./api";
+import { getReputation } from "../reputation/api";
 import { displayName, ANONYMOUS_NAME } from "./display";
 import { getUserId } from "../../shared/api/token";
 import { connectTo } from "../community/api";
@@ -12,11 +13,13 @@ import {
   QuizIcon,
   ReputationIcon,
   UserIcon,
+  ClockIcon,
 } from "../../shared/components/Icons";
 
 export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, onViewReputation }) {
   const subject = userId ?? getUserId();
   const [profile, setProfile] = useState(null);
+  const [reputation, setReputation] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [connection, setConnection] = useState(null);
@@ -43,8 +46,15 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
       return;
     }
     setLoading(true);
-    getProfile(subject)
-      .then((data) => live && setProfile(data))
+    Promise.all([
+      getProfile(subject).catch(() => null),
+      getReputation(subject).catch(() => null),
+    ])
+      .then(([profData, repData]) => {
+        if (!live) return;
+        if (profData) setProfile(profData);
+        if (repData) setReputation(repData);
+      })
       .catch((e) => {
         if (!live) return;
         if (e.status === 401) return onUnauthorized?.();
@@ -145,19 +155,28 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
             </button>
           )}
 
-          {!revealed && onNavigateQuiz && (
-            <button className="btn btn-primary" onClick={onNavigateQuiz}>
-              <QuizIcon size={14} />
-              <span>Take Repo Quiz to Unlock</span>
-            </button>
+          {profile?.role === "employer" ? (
+            onNavigateQuiz && (
+              <button className="btn btn-primary" onClick={onNavigateQuiz}>
+                <JobsIcon size={14} />
+                <span>Post a Verified Role</span>
+              </button>
+            )
+          ) : (
+            !revealed && onNavigateQuiz && (
+              <button className="btn btn-primary" onClick={onNavigateQuiz}>
+                <QuizIcon size={14} />
+                <span>Take Repo Quiz to Unlock</span>
+              </button>
+            )
           )}
         </div>
       </div>
 
-      {/* Reveal Status Notice */}
-      <div className={`card ${revealed ? "alert-success" : "alert-info"}`} style={{ padding: "16px 18px" }}>
+      {/* Reveal / Account Status Notice */}
+      <div className={`card ${revealed || profile?.role === "employer" ? "alert-success" : "alert-info"}`} style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-          {revealed ? (
+          {revealed || profile?.role === "employer" ? (
             <CheckCircleIcon size={18} style={{ color: "var(--success)", flexShrink: 0, marginTop: "2px" }} />
           ) : (
             <ShieldLockIcon size={18} style={{ color: "var(--accent)", flexShrink: 0, marginTop: "2px" }} />
@@ -165,12 +184,16 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
 
           <div>
             <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "2px", color: "var(--text-main)" }}>
-              {revealed
+              {profile?.role === "employer"
+                ? "Verified Employer Account"
+                : revealed
                 ? "Identity Verification: Unlocked"
                 : "Anonymous-First Profile Active"}
             </h3>
             <p style={{ fontSize: "13px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-              {revealed
+              {profile?.role === "employer"
+                ? "Employer accounts create job postings gated behind live company-side technical audits to guarantee postings reflect real engineering expectations."
+                : revealed
                 ? "You passed a defended repository quiz with a score of 70/100 or higher. Employers viewing your applications or candidate profile now see your real name and verified contact details."
                 : "Your name and email remain hidden until you score 70+ on a defended repo quiz. Code earns the introduction before credentials matter."}
             </p>
@@ -304,6 +327,38 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
                 <span style={{ fontWeight: "600", color: revealed ? "var(--success)" : "var(--cream-text)" }}>
                   {revealed ? "Revealed" : "Anonymous"}
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Day-1 Readiness Breakdown */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">
+                <ClockIcon size={14} style={{ color: "var(--accent)" }} />
+                <span>Day-1 Readiness Record</span>
+              </span>
+              <span className="badge badge-accent">Unfamiliar Code</span>
+            </div>
+            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px" }}>
+              Comprehension and orientation speed on unfamiliar codebases from job applications.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
+                <span>Day-1 Readiness Score</span>
+                <span style={{ fontWeight: "700", color: reputation?.day1_readiness ? "var(--accent)" : "var(--text-subtle)", fontSize: "14px" }}>
+                  {reputation?.day1_readiness ? `${reputation.day1_readiness} / 100` : "0 / 100"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
+                <span>Candidate Repo Comprehension</span>
+                <span style={{ fontWeight: "600", color: "var(--text-main)" }}>
+                  {reputation?.comprehension ? `${reputation.comprehension} / 100` : "0 / 100"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px" }}>
+                <span>Component Blending</span>
+                <span className="badge badge-mist">Independent (Unblended)</span>
               </div>
             </div>
           </div>

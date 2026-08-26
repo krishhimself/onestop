@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { BrandLogoIcon, CheckCircleIcon, ShieldLockIcon } from "../../shared/components/Icons";
 
+// [value sent as `role`, label, what picking it means]. The values must match
+// schemas/auth.py's Role literal — anything else is a 422.
 const ROLES = [
-  { value: "candidate", label: "Candidate", desc: "Take repo quizzes & build verified reputation." },
-  { value: "employer", label: "Employer", desc: "Post roles gated behind company technical quizzes." },
+  ["candidate", "Candidate", "Take repo quizzes and build a profile."],
+  ["employer", "Employer", "Post roles — after answering for them."],
 ];
 
 export default function AuthForm({ title, submitLabel, onSubmit, signup, footer }) {
@@ -141,25 +143,24 @@ export default function AuthForm({ title, submitLabel, onSubmit, signup, footer 
           </div>
 
           {signup && (
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label" htmlFor="auth-role">
-                Account Type
-              </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "4px" }}>
-                {ROLES.map(({ value, label, desc }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`btn ${role === value ? "btn-primary" : "btn-secondary"}`}
-                    onClick={() => setRole(value)}
-                    style={{ width: "100%", justifyContent: "center" }}
-                    title={desc}
-                  >
+            <fieldset className="role-choice">
+              <legend>I am a</legend>
+              {ROLES.map(([value, label, hint]) => (
+                <label key={value} className={role === value ? "chosen" : ""}>
+                  <input
+                    type="radio"
+                    name="role"
+                    value={value}
+                    checked={role === value}
+                    onChange={() => setRole(value)}
+                  />
+                  <span>
                     {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    <span className="hint">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
           )}
 
           <button
