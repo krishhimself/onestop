@@ -8,15 +8,24 @@ const DEMO_REPOS = [
   { label: "expressjs/express", url: "https://github.com/expressjs/express" },
 ];
 
-export default function RepoInput({ value, onChange, onSubmit, loading }) {
+export default function RepoInput({
+  value,
+  onChange,
+  onSubmit,
+  loading,
+  title = "Analyze Public Repository",
+  description = "Enter any public GitHub repository URL. The system extracts representative source files and generates evaluation questions.",
+  submitLabel = "Generate Quiz",
+  loadingLabel = "Analyzing Repo...",
+}) {
   return (
     <div className="repo-input-card">
       <div style={{ marginBottom: "6px" }}>
         <h2 style={{ fontSize: "18px", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
-          Analyze Public Repository
+          {title}
         </h2>
         <p style={{ fontSize: "13px", color: "var(--text-muted)", maxWidth: "600px", lineHeight: "1.5" }}>
-          Enter any public GitHub repository URL. The system extracts representative source files and generates comprehension questions across problem domain, logic, stack trade-offs, and edge cases.
+          {description}
         </p>
       </div>
 
@@ -49,7 +58,7 @@ export default function RepoInput({ value, onChange, onSubmit, loading }) {
           disabled={loading || !value}
           style={{ minWidth: "140px" }}
         >
-          {loading ? "Analyzing Repo..." : "Generate Quiz"}
+          {loading ? loadingLabel : submitLabel}
         </button>
       </form>
 

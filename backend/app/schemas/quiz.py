@@ -88,3 +88,46 @@ class QuizResultResponse(BaseModel):
     score: float
     breakdown: dict
     feedback: List[dict]
+
+
+# --- Bug Hunt Mode Schemas ---
+
+class ModifiedFile(BaseModel):
+    path: str
+    content: str
+
+
+class BugHuntGenerateRequest(BaseModel):
+    repo_url: str
+
+
+class BugHuntGenerateResponse(BaseModel):
+    bug_hunt_id: str
+    repo_url: str
+    modified_files: List[ModifiedFile]
+    time_limit_seconds: int = 180
+    expected_bug_count: int
+
+
+class BugFinding(BaseModel):
+    file_path: str
+    suspected_location: Optional[str] = None
+    description: str
+    seconds_left: Optional[float] = None
+    flagged_paste: bool = False
+    paste_delta: int = 0
+
+
+class BugHuntSubmitRequest(BaseModel):
+    bug_hunt_id: str
+    findings: List[BugFinding]
+
+
+class BugHuntSubmitResponse(BaseModel):
+    bug_hunt_id: str
+    score: float
+    bugs_caught: int
+    total_bugs: int
+    breakdown: List[dict]
+    summary: str
+

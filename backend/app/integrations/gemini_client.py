@@ -354,3 +354,127 @@ THEIR ANSWERS:
 """
     response = await _model().generate_content_async(prompt)
     return json.loads(_strip_code_fence(response.text))
+
+
+async def generate_bug_hunt(files: list[dict], n_bugs: int = 3) -> tuple[list[dict], list[dict]]:
+    """
+    Inject 2-3 subtle, realistic bugs into copies of the candidate's own source files.
+
+    Bugs must be semantic, logical, or behavioral (e.g. off-by-one, swapped condition,
+    unhandled empty edge case, subtle data race/mutation) — NEVER syntax errors.
+
+    Returns:
+      (modified_files, injected_bugs)
+      - modified_files: list of {"path": str, "content": str} with the bugs introduced.
+      - injected_bugs: list of {"id": str, "file_path": str, "line_hint": str, "description": str, "bug_type": str, "impact": str} (kept server-side!).
+    """
+    file_context = "\n\n".join(f"--- {f['path']} ---\n{f['content']}" for f in files)
+
+    prompt = f"""You are a principal engineer creating a "Bug Hunt" code comprehension challenge for the original author of this codebase.
+
+Your task:
+Take the provided source files and inject {n_bugs} realistic, subtle bugs into them.
+
+CRITICAL RULES FOR INJECTED BUGS:
+1. Must be SUBTLE and SEMANTIC:
+   - Off-by-one error (e.g. `<= vs <`, slicing boundaries, or indexing bounds)
+   - Inverted condition or swapped branch (`if is_valid` instead of `if not is_valid`)
+   - Mishandled edge case (null/empty array, unhandled None, missing return value on fallback)
+   - Subtle mutation/state leak (modifying shared collection in-place instead of a copy)
+   - Incorrect error fallback or swallowed exception
+2. NEVER inject syntax errors, missing brackets, malformed indentation, or obvious typo keywords that a compiler/linter would catch immediately. The code MUST remain clean and syntactically valid.
+3. Keep unmodified files or unmodified portions of files intact.
+
+Return ONLY a JSON object, no markdown wrapper or prose outside JSON:
+{{
+  "modified_files": [
+    {{"path": "path/to/file.py", "content": "full modified file content with the subtle bug(s) injected"}}
+  ],
+  "injected_bugs": [
+    {{
+      "id": "bug_1",
+      "file_path": "path/to/file.py",
+      "line_hint": "around function or line reference",
+      "bug_type": "off_by_one" | "inverted_condition" | "edge_case" | "state_mutation" | "logic",
+      "description": "Clear explanation of what the injected bug is and what was modified",
+      "impact": "What goes wrong or fails during execution"
+    }}
+  ]
+}}
+
+SOURCE CODE:
+{file_context}
+"""
+    response = await _model().generate_content_async(prompt)
+    data = json.loads(_strip_code_fence(response.text))
+    modified_files = data.get("modified_files") or []
+    injected_bugs = data.get("injected_bugs") or []
+    return modified_files, injected_bugs
+
+
+async def grade_bug_hunt(injected_bugs: list[dict], findings: list[dict]) -> dict:
+    """
+    Grade candidate's bug findings against the ground truth injected bugs.
+
+    Evaluates:
+    - How many of the injected bugs the candidate accurately identified.
+    - Quality and depth of their explanation.
+    - False positives (flagging correct code as broken).
+
+    Returns:
+    {
+      "score": 0-100,
+      "bugs_caught": int,
+      "total_bugs": int,
+      "breakdown": [
+        {
+          "bug_id": str,
+          "file_path": str,
+          "description": str,
+          "caught": bool,
+          "explanation_quality": "excellent" | "good" | "partial" | "missed",
+          "feedback": str
+        }
+      ],
+      "summary": str
+    }
+    """
+    bugs_json = json.dumps(injected_bugs, indent=2)
+    findings_json = json.dumps(findings, indent=2)
+
+    prompt = f"""You are evaluating a candidate's findings in a Bug Hunt test where {len(injected_bugs)} subtle bugs were injected into code they claim to have written.
+
+GROUND TRUTH INJECTED BUGS (Answer Key - Secret):
+{bugs_json}
+
+CANDIDATE'S SUBMITTED FINDINGS:
+{findings_json}
+
+Evaluate the candidate's performance:
+1. For EACH injected bug, determine if the candidate correctly identified it (caught: true/false).
+2. Rate their explanation quality ("excellent", "good", "partial", or "missed").
+3. Check if they identified the actual root cause and consequences.
+4. Calculate an overall score from 0 to 100 based on the percentage of bugs caught and explanation accuracy.
+5. Note if they hallucinated non-existent bugs in valid code.
+
+Return ONLY a JSON object:
+{{
+  "score": 0-100,
+  "bugs_caught": number_of_caught_bugs,
+  "total_bugs": {len(injected_bugs)},
+  "breakdown": [
+    {{
+      "bug_id": "bug_1",
+      "file_path": "path/to/file.py",
+      "description": "what the ground truth bug was",
+      "caught": true | false,
+      "explanation_quality": "excellent" | "good" | "partial" | "missed",
+      "feedback": "constructive feedback on their finding and explanation"
+    }}
+  ],
+  "summary": "one to two sentences summarizing candidate's debugging comprehension"
+}}
+"""
+    response = await _model().generate_content_async(prompt)
+    return json.loads(_strip_code_fence(response.text))
+

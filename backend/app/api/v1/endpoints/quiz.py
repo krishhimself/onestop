@@ -15,6 +15,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.dependencies import get_current_user
 
 from app.schemas.quiz import (
+    BugHuntGenerateRequest,
+    BugHuntGenerateResponse,
+    BugHuntSubmitRequest,
+    BugHuntSubmitResponse,
     Day1QuizGenerateRequest,
     Day1QuizGenerateResponse,
     FollowUpRequest,
@@ -24,7 +28,7 @@ from app.schemas.quiz import (
     QuizSubmitRequest,
     QuizSubmitResponse,
 )
-from app.services import quiz_service
+from app.services import bug_hunt_service, quiz_service
 
 router = APIRouter()
 
@@ -82,3 +86,31 @@ async def followup(req: FollowUpRequest, user: dict = Depends(get_current_user))
         "breakdown": {"details": result["breakdown"]},
         "feedback": result["breakdown"],
     }
+
+
+# --- Bug Hunt Mode Endpoints ---
+
+@router.post("/bughunt/generate", response_model=BugHuntGenerateResponse)
+async def generate_bughunt(req: BugHuntGenerateRequest, user: dict = Depends(get_current_user)):
+    """
+    Injects 2-3 subtle bugs into candidate repo working copies.
+    Never returns the injected bug answer key to the client.
+    """
+    try:
+        return await bug_hunt_service.create_bug_hunt(req.repo_url, user["user_id"])
+    except ValueError:
+        raise HTTPException(400, "Couldn't read source files from that repo — make sure it's public.")
+
+
+@router.post("/bughunt/submit", response_model=BugHuntSubmitResponse)
+async def submit_bughunt(req: BugHuntSubmitRequest, user: dict = Depends(get_current_user)):
+    """
+    Grades candidate's submitted findings against the server-side ground truth injected bugs.
+    """
+    try:
+        return await bug_hunt_service.submit_and_grade_bug_hunt(
+            req.bug_hunt_id, [f.model_dump() for f in req.findings], user["user_id"]
+        )
+    except LookupError:
+        raise HTTPException(404, "Bug hunt challenge not found")
+

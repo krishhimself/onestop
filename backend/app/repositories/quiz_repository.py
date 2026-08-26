@@ -32,6 +32,18 @@ async def update_result(quiz_id: str, result: dict, followup: dict | None = None
     await collection.update_one({"_id": quiz_id}, {"$set": changes})
 
 
+async def update_attempt(quiz_id: str, changes: dict) -> None:
+    await collection.update_one({"_id": quiz_id}, {"$set": changes})
+
+
+async def update_bughunt_result(quiz_id: str, findings: list[dict], result: dict) -> None:
+    await collection.update_one(
+        {"_id": quiz_id},
+        {"$set": {"status": "graded", "findings": findings, "result": result}},
+    )
+
+
+
 async def has_graded_attempt_scoring_at_least(user_id: str, minimum: float) -> bool:
     """
     True if this user owns at least one graded attempt at or above `minimum`.

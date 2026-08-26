@@ -158,16 +158,31 @@ The **Day-1 Readiness Test** measures the critical skill every conventional inte
 3. **Timed defense**: The candidate answers under the same per-question countdown clock with silent paste detection and an adaptive follow-up defense round.
 4. **Independent reputation component**: The graded Day-1 Readiness score is stored directly on the application document for the employer to review, and lands as an independent `day1_readiness` component in the candidate's platform reputation breakdown — **never blended into** the candidate repo comprehension score.
 
+## Bug Hunt Mode
+
+We inject bugs into your own code and ask you to find them; the ultimate test that you actually understand what you shipped.
+
+Anyone can describe what happy-path code does in an interview. But when subtle bugs appear in code you claim to have written, can you spot what went wrong and articulate the failure mode before the clock runs out?
+
+### How it works
+
+1. **Subtle, semantic bug injection**: When a candidate launches a Bug Hunt on their repository, Gemini creates copies of source files with 2–3 realistic logic bugs injected (e.g. boundary off-by-one errors, inverted conditional branches, unhandled empty-collection edge cases, subtle state mutation leaks). **Never syntax breaks or linter-obvious typos.**
+2. **Server-side answer key protection**: The ground-truth injected bugs and exact line locations are stored exclusively server-side in MongoDB and are **never** returned in the generation payload, preventing any answer key leaks in the browser network tab.
+3. **Timed code inspection workspace**: The candidate reviews the modified code in an interactive workspace, submits suspected bug locations with explanations of the root cause and consequence, under a countdown clock with silent paste detection.
+4. **LLM-calibrated evaluation**: The server evaluates findings against the ground truth, grading on both detection accuracy (caught vs. missed bugs) and explanation depth, returning constructive feedback on each bug.
+
 ## Status
 
 **Built:** repo quiz end to end (generate → answer → grade), the company-side
 quiz gating job postings, the Day-1 Readiness Test for unfamiliar codebases attached to job postings,
+Bug Hunt mode with subtle bug injection and server-side secret grading,
 anonymous-first candidate profiles, the reputation score (comprehension + day-1 readiness + round history, shown as an unblended breakdown), connections and a
 text-only community feed, job listing/application CRUD.
 
 **Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
 slot in): reputation feeding the reveal threshold, difficulty-calibrated
-scoring, bug-hunt mode.
+scoring.
+
 
 ### Community: what is deliberately absent
 

@@ -29,3 +29,20 @@ export function submitFollowUp(quizId, answer, secondsLeft) {
     body: JSON.stringify({ quiz_id: quizId, answer, seconds_left: secondsLeft }),
   });
 }
+
+// Bug Hunt Mode: generate modified code with injected subtle bugs (secret ground truth kept on server)
+export function generateBugHunt(repoUrl) {
+  return request("/quiz/bughunt/generate", {
+    method: "POST",
+    body: JSON.stringify({ repo_url: repoUrl }),
+  });
+}
+
+// Bug Hunt Mode: submit candidate findings for server-side evaluation & grading
+export function submitBugHunt(bugHuntId, findings) {
+  return request("/quiz/bughunt/submit", {
+    method: "POST",
+    body: JSON.stringify({ bug_hunt_id: bugHuntId, findings }),
+  });
+}
+
