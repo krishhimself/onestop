@@ -69,7 +69,40 @@ response carries `"Anonymous Candidate"` and a null email, so an unrevealed name
 never reaches the browser at all. `features/profile/display.js` re-checks the flag
 as a second lock.
 
-## Request flow example - posting a job
+## Request flow example - Bug Hunt Mode
+
+```
+POST /api/v1/quiz/bughunt/generate           (candidate token required)
+  -> api/v1/endpoints/quiz.py::generate_bughunt()
+    -> services/bug_hunt_service.py::create_bug_hunt()
+      -> integrations/github_client.py::fetch_repo_files()
+      -> integrations/gemini_client.py::generate_bug_hunt()
+      -> repositories/quiz_repository.py::save_attempt()   (stores modified_files + injected_bugs server-side)
+    <- BugHuntGenerateResponse {bug_hunt_id, modified_files, time_limit_seconds, expected_bug_count}
+       (ZERO-LEAK: answer key & injected_bugs never cross the wire)
+
+POST /api/v1/quiz/bughunt/submit             (candidate token required)
+  -> api/v1/endpoints/quiz.py::submit_bughunt()
+    -> services/bug_hunt_service.py::submit_and_grade_bug_hunt()
+      -> integrations/gemini_client.py::grade_bug_hunt()   (evaluates findings vs. secret injected_bugs)
+      -> repositories/quiz_repository.py::update_attempt()
+    <- BugHuntSubmitResponse {score, bugs_caught, total_bugs, breakdown, summary}
+```
+
+## Request flow example - Day-1 Readiness Test
+
+```
+POST /api/v1/quiz/day1/generate              (candidate token required)
+  -> api/v1/endpoints/quiz.py::generate_day1()
+    -> services/quiz_service.py::create_day1_quiz()
+      -> repositories/job_repository.py::get_job()         (fetches employer's attached trial repo)
+      -> integrations/github_client.py::fetch_repo_files()
+      -> integrations/gemini_client.py::generate_day1_questions() (orientation, navigation, blast radius, data flow)
+      -> repositories/quiz_repository.py::save_attempt()   (saved with type: "day1")
+    <- Day1QuizGenerateResponse {quiz_id, job_id, repo_url, questions, time_limit_seconds}
+```
+
+## Request flow example - posting a job (Company Quiz)
 
 A posting is the output of a defended quiz, not an input to one. There is no
 ungated create route: `job_service.post_job()` has exactly one caller.
