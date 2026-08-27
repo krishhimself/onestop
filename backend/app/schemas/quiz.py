@@ -18,19 +18,22 @@ class Day1QuizGenerateRequest(BaseModel):
     job_id: str
 
 
+# Defined before the responses that carry it: annotations are evaluated when the
+# class body runs, so a model referencing this above its definition is a NameError
+# at import on Python < 3.14.
+class QuizQuestion(BaseModel):
+    id: str
+    question: str
+    file_reference: Optional[str] = None
+    category: Optional[str] = None  # problem | logic | stack | usage
+
+
 class Day1QuizGenerateResponse(BaseModel):
     quiz_id: str
     job_id: str
     repo_url: str
     questions: List[QuizQuestion]
     time_limit_seconds: int = TIME_LIMIT_SECONDS
-
-
-class QuizQuestion(BaseModel):
-    id: str
-    question: str
-    file_reference: Optional[str] = None
-    category: Optional[str] = None  # problem | logic | stack | usage
 
 
 class ComplexityInfo(BaseModel):

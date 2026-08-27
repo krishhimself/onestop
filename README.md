@@ -2,29 +2,55 @@
 
 ## Thesis
 
-Existing platforms (LinkedIn, Naukri, Indeed, Glassdoor) verify *claims* —
-a resume, a headline, a list of skills. In a world where AI can write both
-the code and the resume, claims are cheap. This platform verifies whether
-a candidate actually **understands** what they built, and whether a
-company's posting reflects what the role actually is — on both sides of
-the market.
+Existing platforms (LinkedIn, Naukri, Indeed, Glassdoor) verify *claims* — a
+resume, a headline, a list of skills. In a world where AI writes both the code
+and the resume, claims are cheap.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the technical layout.
+OneStop verifies **understanding** instead, and it does so on both sides of the
+market:
 
-## Core mechanism: the Repo Quiz
+- A candidate's claim is their repo. The **repo quiz** tests whether they can
+  explain what they built without the source in front of them.
+- A company's claim is its posting. The **posting quiz** tests whether the
+  person publishing the role actually knows what the role is. A posting exists
+  only as the output of a defended quiz — there is no ungated "create job" route.
 
-1. Candidate pastes a public GitHub repo link.
-2. The backend pulls sample source files and has an LLM interrogate the
-   candidate the way a hackathon jury would — grounded in what is actually
-   in that repo, across four categories:
-   - **problem understanding** — what this solves, who for, why it matters
-   - **logic / reasoning** — how the core mechanism actually works, end to end
-   - **tech stack awareness** — why these libraries and design choices, over alternatives
-   - **usage / functionality** — what happens when someone uses it, failure cases included
+Everything else on the platform hangs off those two facts.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layer-by-layer layout
+and per-feature request flows.
+
+---
+
+## The four modes
+
+All four are built and wired end to end. Three of them share one engine
+(`app/services/quiz_service.py` + `app/integrations/gemini_client.py`): same
+75-second clock, same silent paste recording, same single adaptive follow-up
+before anything is graded. Bug Hunt is the exception and is called out below.
+
+| Mode | Who takes it | What it proves | Endpoint |
+|---|---|---|---|
+| Repo quiz | Candidate | You understand code you wrote | `POST /quiz/generate` |
+| Posting quiz | Employer | You understand the role you're advertising | `POST /jobs/company-quiz/generate` |
+| Day-1 Readiness | Candidate applying to a job | You can orient in code you've never seen | `POST /quiz/day1/generate` |
+| Bug Hunt | Candidate | You'd notice if your own code broke | `POST /quiz/bughunt/generate` |
+
+### 1. Repo quiz — comprehension of your own code
+
+1. Candidate pastes a public GitHub repo URL.
+2. `github_client.fetch_repo_files()` pulls up to 12 source files — largest
+   first, binaries/locks/build output skipped, 4 KB per file — and Gemini
+   generates five questions grounded in what is actually there, across four
+   categories:
+   - **problem** — what this solves, who for, why it matters
+   - **logic** — how the core mechanism works, end to end
+   - **stack** — why these libraries and design choices over alternatives
+   - **usage** — what happens when someone uses it, failure cases included
 3. The candidate answers live under a per-question clock, no re-rolls.
 4. Before anything is graded, one adaptive follow-up pushes on the candidate's
-   own wording from whichever answer looks least likely to be theirs.
-5. The LLM grades the reasoning, not the vocabulary, weighing the follow-up
+   own wording, drawn from whichever answer looks least likely to be theirs.
+5. Gemini grades the reasoning, not the vocabulary, weighting the follow-up
    heavily. A confident, correct explanation in the candidate's own words scores
    well with no code quoted; answers vague enough to describe any project score
    zero.
@@ -32,200 +58,320 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the technical layout.
 Deliberately **not** line-number or syntax trivia. "Why did you slice
 `text[4:]`?" is a question a stranger can answer off the diff and the actual
 author can fail out loud. The questions are meant to be answerable by whoever
-genuinely built the thing, without the source in front of them.
+genuinely built the thing, from memory.
 
-Try it on this repo's own URL once it's public — that's intentional.
+The same generation call also returns a **project complexity tier** — see
+[Known limitations](#known-limitations).
 
-### Anti-gaming measures
+Try it on this repo's own URL — that's intentional.
+
+### 2. Posting quiz — comprehension of the role you're hiring for
+
+A resume is a claim about a person; a job posting is a claim about a role. Both
+are cheap to generate and both are usually written by someone other than the
+person who will live with them. So the company side runs the same interrogation
+in reverse.
+
+1. An employer writes the draft — company, role, description, stack, and
+   optionally a trial repo URL.
+2. The same engine generates questions grounded in that draft, in four
+   categories: **role** (day to day, and what "doing well" looks like at 90
+   days), **stack** (which listed technologies the hire actually touches, and
+   why each is there), **team** (who they work with, who decides what gets
+   built), **reality** (the constraints, the legacy, what makes it hard).
+3. Same clock, same silent paste recording, same single adaptive follow-up.
+4. The posting is published **only** at 70/100 or better
+   (`company_quiz_service.PASS_SCORE`).
+
+Two properties the code enforces rather than merely intends:
+
+- **The posting that goes live is the draft the questions came from.** It is
+  stored server-side at generation time and copied into the jobs collection on a
+  pass, so a company cannot answer honestly about the real role and then publish
+  a rosier version of it.
+- **Grading cannot be replayed.** A graded attempt is terminal: it keeps the
+  `job_id` it produced, and a retried call returns that stored outcome instead of
+  minting a second posting.
+
+What this catches is a posting nobody behind it can account for — a listing with
+Kafka and Kubernetes next to a description that only mentions FastAPI and Mongo
+gets asked where Kafka actually sits in that flow. A template cannot survive
+that; the engineer who owns the pipeline answers it without thinking.
+
+### 3. Day-1 Readiness — comprehension of code you've never seen
+
+Traditional technical interviews almost universally test **writing fresh code**:
+leetcode puzzles, greenfield take-homes, blank-canvas live coding. Actual
+day-to-day engineering is overwhelmingly **reading and navigating existing
+codebases someone else wrote**. Day-1 Readiness measures the skill every
+conventional interview skips.
+
+1. When posting a role, an employer can attach a `trial_repo_url` — their own
+   public repo or any representative open-source codebase.
+2. A candidate applying to that job is routed through the Day-1 quiz first. The
+   platform fetches files from the *employer's* repo and generates questions in
+   four orientation categories:
+   - **orientation** — what a given module or service is actually for
+   - **navigation** — where a specific change would need to be made
+   - **blast radius** — what breaks if a function, schema, or invariant changes
+   - **data flow** — how data moves between two named files or layers
+3. Same clock, same paste detection, same adaptive follow-up defence.
+4. The graded score lands on the application document for the employer to
+   review, and appears as an independent `day1_readiness` component in the
+   candidate's reputation — **never blended into** the repo comprehension score.
+   The separation is enforced at the query layer: comprehension reads
+   `type != "day1"`, readiness reads `type == "day1"`.
+
+### 4. Bug Hunt — would you notice if your own code broke?
+
+Anyone can describe what happy-path code does in an interview. Bug Hunt asks
+whether you'd spot a subtle break in code you claim to have written.
+
+1. Gemini takes the candidate's own source files and returns working copies with
+   2–3 realistic bugs injected: boundary off-by-ones, inverted conditions,
+   unhandled empty-collection cases, in-place mutation of a shared collection,
+   swallowed exceptions. Explicitly **never** syntax errors or anything a linter
+   would catch — the code stays valid.
+2. **The answer key never crosses the wire.** Ground-truth bugs and their line
+   hints are written to the attempt document server-side; the generation response
+   carries only the modified files and a bug *count*. There is nothing to read
+   out of the network tab.
+3. The candidate reads the code in an interactive workspace and files findings —
+   file, suspected location, and an explanation of cause and consequence.
+4. The server grades findings against the ground truth on both detection
+   (caught vs. missed) and explanation depth, and returns per-bug feedback,
+   including whether the candidate hallucinated bugs in valid code.
+
+**How Bug Hunt differs from the other three, concretely:**
+
+- The clock is **180 seconds for the whole workspace**, not 75 per question.
+- That countdown is a plain one-second tick, not the wall-clock calculation the
+  quiz timer uses — so backgrounding the tab can slow it. The quiz timer is not
+  vulnerable to this; Bug Hunt's is.
+- There is **no adaptive follow-up round**. Grading happens on submission.
+- Bug Hunt scores do **not** currently feed the reputation breakdown. Attempts
+  are stored with `status: "completed"`, and every reputation query reads
+  `status: "graded"`. The score is returned to the candidate and stored; it is
+  not yet part of the number an employer sees.
+
+---
+
+## Anti-gaming defences
 
 The obvious attack is to paste the question into a chatbot and paste the answer
-back. Three things make that expensive:
+back. Three things make that expensive.
 
 **A 75-second clock per question.** It starts when the question renders and is
-derived from wall-clock time rather than accumulated ticks, so backgrounding the
-tab does not buy extra seconds. When it expires the answer commits as-is — blank
-included — and the box locks. Time remaining at commit is recorded, because a long
-polished answer submitted with most of the clock unspent was not composed in the
-box.
+derived from wall-clock time (`Date.now()` against a start timestamp) rather than
+accumulated ticks, so backgrounding the tab does not buy extra seconds. When it
+expires the answer commits as-is — blank included — and the box locks. Time
+remaining at commit is recorded, because a long polished answer submitted with
+most of the clock unspent was not composed in the box.
 
-**Paste is detected, not blocked.** Blocking it only teaches a candidate to retype
-what they pasted; recording it tells us which answer to interrogate. React fires one
+**Paste is detected, not blocked.** Blocking only teaches a candidate to retype
+what they pasted; recording tells us which answer to interrogate. React fires one
 change event per input, so ordinary typing arrives as a stream of single-character
-deltas — a single event that adds a whole paragraph did not come from a keyboard.
-That answer is silently marked. Nothing is prevented and no warning is shown, so the
-paste appears to have worked.
+deltas — a single event adding more than 40 characters within 100 ms of the last
+one did not come from a keyboard. That answer is silently marked with the size of
+the largest injection. Nothing is prevented and no warning is shown, so the paste
+appears to have worked. The gap check is what keeps IME composition, autocomplete,
+and deleting a large selection from tripping it
+(`frontend/src/features/quiz/pasteDetect.js`, 23 unit tests including the known
+gaps).
 
-**One adaptive follow-up, before grading.** Once answers are in, the answer least
-likely to have been typed by its author is selected. A recorded paste wins outright,
-since it is evidence rather than inference, with ties going to the largest single
-injection; failing that, typing rate weighted by length, so a suspiciously fast essay
-outranks a fast one-liner. A single
-follow-up is generated that quotes that answer's specific wording back and pushes
-on it. Same clock, same no-paste rule. Grading happens only after this round, so a
-candidate cannot bank a score and abandon the round they cannot pass.
+**One adaptive follow-up, before grading.** Once answers are in,
+`pick_suspect_answer()` selects the answer least likely to have been typed by its
+author. A recorded paste wins outright — it is evidence rather than inference —
+with ties going to the largest single injection. Failing that, typing rate
+weighted by length, so a suspiciously fast essay outranks a fast one-liner. A
+single follow-up is generated that quotes that answer's specific wording back and
+pushes on it. Same clock, same rules. **Grading happens only after this round**,
+so a candidate cannot bank a score and abandon the round they cannot pass.
 
-Measured on `psf/requests`, same repo and same time budget:
+Measured manually on `psf/requests`, same repo and same time budget:
 
 | Profile | Behaviour | Score |
 |---|---|---|
 | Pasted AI answer | committed with 63s of 75s left, could not defend its wording | **0/100** |
 | Genuine author | typed distinct answers, defended the follow-up | **100/100** |
 
-**What this does not do.** The timer and the paste detector are client-side. They
-raise the cost of casual cheating; they do not stop anyone willing to call the API
-directly with a forged `seconds_left` and `flagged_paste: false`. Detection also has
-a seam of its own: pasting after a pause long enough to look like thinking clears the
-timing guard, and dictation software can legitimately commit a long phrase in one
-event. The follow-up round is the measure that actually holds, because it demands
-understanding at response time regardless of how the request was made. Server-issued
-timestamps at generation, with elapsed time computed server-side, are the real fix and
-are not built yet.
+### What the defences do not do
 
-### Known limitation: comprehension is not difficulty
+**The timer and the paste detector are client-side.** They raise the cost of
+casual cheating; they do not stop anyone willing to call the API directly with a
+forged `seconds_left` and `flagged_paste: false`. Server-issued timestamps at
+generation, with elapsed time computed server-side, are the real fix and are not
+built yet.
 
-A simple project can legitimately score 100/100 on itself. If someone
-understands their to-do app completely, they *should* score full marks — but
-that number says nothing about whether the to-do app was hard to build. A raw
-comprehension score, on its own, is not a measure of engineering ability.
+**Detection has known seams**, and the test suite names them: pasting after a
+pause longer than 100 ms clears the timing guard, and dictation software can
+legitimately commit a long phrase in one event.
 
-**Current mitigation.** The score is never shown as one opaque number. Every
-result renders the full per-question breakdown alongside a separate
-**project complexity tier** (`trivial` / `moderate` / `complex`), judged from
-signals in the repo itself — file count, async and concurrency patterns,
-external API calls, state management, error handling, tests — and explicitly
-not from how hard the generated questions happen to be. A perfect score on a
-trivial project is therefore visible as exactly that, rather than being
-indistinguishable from a perfect score on a complex one.
+**A text-only quiz cannot fully stop a second screen.** Nothing here prevents a
+candidate from reading the question off one monitor and an LLM's answer off
+another. That is the honest limit of the format — which is exactly why the
+follow-up round exists. It is generated from the candidate's own wording at
+response time, under the same clock, so it cannot be prepared in advance and
+cannot be answered by anyone who did not understand the answer they just gave.
+The follow-up is the measure that actually holds; the timer and the paste
+detector only make it harder to reach.
 
-**The real fix, still on the roadmap.** Difficulty-calibrated scoring:
-weighting each question by how hard it proves to be population-wide, so scores
-are comparable across candidates and projects. That needs answer data across
-many candidates before it can be calibrated, which does not exist yet. The
-complexity tier is a deliberate stopgap — a second, independent signal — not a
-substitute for it.
+---
 
-## The other side: the posting quiz
+## The rest of the platform
 
-A resume is a claim about a person; a job posting is a claim about a role. Both are
-cheap to generate and both are usually written by someone other than the person who
-will live with them. So the company side runs the same interrogation in reverse.
+**Auth with two roles.** Register as `candidate` or `employer`; the role is baked
+into the JWT and drives both routing and authorisation. Employer-only endpoints
+sit behind `get_current_employer`, and the frontend refuses to render the repo
+quiz or Bug Hunt tabs for an employer account. Passwords are bcrypt-hashed and
+never returned by any query but the login one; login answers identically for an
+unknown email and a wrong password, so it cannot be used to enumerate accounts.
 
-1. An employer writes the posting — company, role, stack, what the job actually is.
-2. The same engine generates questions grounded in that posting, in four categories:
-   - **role** — what this person does day to day, and what "doing well" looks like at 90 days
-   - **stack** — which of the listed technologies the hire actually touches, and why each is there
-   - **team** — who they work with, who decides what gets built
-   - **reality** — the constraints, the legacy, what makes the role genuinely hard
-3. Same 75-second clock, same silent paste recording, same single adaptive follow-up
-   before anything is graded.
-4. A posting is published **only** if the answers clear 70/100. Nothing else in the
-   codebase creates a job: `job_service.post_job()` has exactly one caller, and it is
-   the grading step.
+**Anonymous-first funnel.** Every account starts as "Anonymous Candidate".
+Employers browse pseudonyms and learn who someone is only once that candidate has
+a defended quiz at 70 or better (`reputation_service.REVEAL_MIN_SCORE`) — the
+code earns the introduction, not the CV. Identity is dropped in the service
+layer, not hidden in the UI: an unrevealed profile carries no name and no email
+anywhere in the response. Reveal is evaluated on read (so a threshold change
+applies immediately, with no migration) and latched once it flips.
 
-The posting that goes live is the draft the questions were generated from, held
-server-side for the whole round — so a company cannot answer honestly about the real
-role and then publish a rosier version of it.
+**Reputation as a breakdown, never one number.** `GET /users/{id}/reputation`
+returns `comprehension` (mean of defended repo-quiz scores), `day1_readiness`
+(mean of defended Day-1 scores, kept separate), `rounds_reached`, and
+`quiz_count` alongside the `overall`. The overall is
+`0.75 × comprehension + 0.25 × rounds`, where rounds saturate at four so the
+score cannot be farmed by volume of applications. A candidate averaging 92 across
+one quiz and one averaging 92 across six are not the same candidate, and the
+payload has to make that visible.
 
-What this catches is a posting nobody behind it can account for. Asked about a
-posting listing Kafka and Kubernetes next to a description that only mentions
-FastAPI and Mongo, the first question generated back was where Kafka actually sits
-in that flow — the kind of question a template cannot survive and the engineer who
-owns the pipeline answers without thinking. A round answered with specifics and a
-defended follow-up scored 98/100 and published; a round whose answers repeated
-themselves and whose follow-up went undefended scored 52 and published nothing.
+**Community, and what is deliberately absent.** Connections are instant and
+mutual — one document per pair, no request, no approval, no pending state — and a
+post is text that gets created and listed (2000 characters, 20 per page). Left
+out on purpose, each one a schema change rather than a flag, so the feed cannot
+drift into a social network by default: direct messages, threaded replies and
+comments, likes/reactions/any engagement counter, approval-required connections,
+media in posts. An unrevealed candidate is a pseudonym in the feed and in a
+connections list for exactly as long as they are one on their profile: names
+resolve at read time, and an unrevealed one is never in the payload at all.
 
-**Same seam as the candidate side.** The clock and the paste detector are
-client-side, and the pass mark is a single model judgement. What holds is the
-follow-up: it is generated from the employer's own wording at response time, so it
-cannot be prepared in advance. Grading also cannot be replayed — an attempt is
-graded once, keeps the job id it produced, and a retried call returns that instead of
-publishing again.
+**Jobs and applications.** Browse listings, apply (routed through the Day-1 test
+when the posting has a trial repo attached), and — for employers — review
+applicants with their comprehension and Day-1 scores and move them through
+`applied → reviewed → accepted / rejected`. Only the employer who posted a job
+can touch its applications.
 
-## The Day-1 Readiness Test
+---
 
-Traditional technical interviews almost universally test **writing fresh code from scratch** — leetcode puzzles, greenfield take-homes, or blank-canvas live coding. But actual day-to-day software engineering is overwhelmingly **reading, navigating, and orienting in existing codebases** that the engineer did not write.
+## Known limitations
 
-The **Day-1 Readiness Test** measures the critical skill every conventional interview skips: how fast and accurately a developer can orient themselves when dropped into an unfamiliar codebase.
+**Comprehension is not difficulty.** A simple project can legitimately score
+100/100 on itself. If someone understands their to-do app completely, they
+*should* score full marks — but that number says nothing about whether the to-do
+app was hard to build. A raw comprehension score, alone, is not a measure of
+engineering ability.
 
-### How it works
+*Current mitigation:* the score is never shown as one opaque number. Every result
+renders the full per-question breakdown next to a separate **project complexity
+tier** (`trivial` / `moderate` / `complex`, or `unknown` if the model will not
+commit), judged from signals in the repo itself — file count, async and
+concurrency patterns, external API calls, state management, error handling, tests
+— and explicitly *not* from how hard the generated questions happen to be. A
+perfect score on a trivial project is therefore visible as exactly that, rather
+than being indistinguishable from a perfect score on a complex one.
 
-1. **Employer attaches a trial repo**: When posting a role, employers can attach a public repository URL — their own production repo or any representative open-source codebase.
-2. **Unfamiliar codebase interrogation**: When a candidate applies, the platform fetches sample files from the employer's attached repo and generates questions across four Day-1 orientation areas:
-   - **orientation** — what a given module or service's core purpose is
-   - **navigation** — where in the codebase a specific feature addition or change would need to be made
-   - **blast radius** — what would fail or break if a particular function, schema, or invariant were altered
-   - **data flow** — how data moves and transforms between two specific files or architectural layers
-3. **Timed defense**: The candidate answers under the same per-question countdown clock with silent paste detection and an adaptive follow-up defense round.
-4. **Independent reputation component**: The graded Day-1 Readiness score is stored directly on the application document for the employer to review, and lands as an independent `day1_readiness` component in the candidate's platform reputation breakdown — **never blended into** the candidate repo comprehension score.
+*The real fix, still on the roadmap:* difficulty-calibrated scoring, weighting
+each question by how hard it proves to be population-wide. That needs answer data
+across many candidates, which does not exist yet. The complexity tier is a
+deliberate stopgap — a second, independent signal — not a substitute.
 
-## Bug Hunt Mode
+**A text-only quiz cannot fully stop AI answering on a second screen.** See
+[What the defences do not do](#what-the-defences-do-not-do). The client-side
+clock and paste detector are forgeable by anyone calling the API directly, and no
+browser-side measure can see a second monitor. The adaptive follow-up is the
+defence that actually holds, because it demands understanding at response time
+regardless of how the request was made.
 
-We inject bugs into your own code and ask you to find them; the ultimate test that you actually understand what you shipped.
+**Every grade is a single model judgement.** There is no second opinion, no
+rubric calibration across candidates, and no appeal path.
 
-Anyone can describe what happy-path code does in an interview. But when subtle bugs appear in code you claim to have written, can you spot what went wrong and articulate the failure mode before the clock runs out?
+**`POST /jobs/apply` is unauthenticated** and takes `user_id` in the body, so an
+application can currently be filed on someone else's behalf. Every other
+quiz and application route is token-bound; this one has not been brought in line
+yet.
 
-### How it works
-
-1. **Subtle, semantic bug injection**: When a candidate launches a Bug Hunt on their repository, Gemini creates copies of source files with 2–3 realistic logic bugs injected (e.g. boundary off-by-one errors, inverted conditional branches, unhandled empty-collection edge cases, subtle state mutation leaks). **Never syntax breaks or linter-obvious typos.**
-2. **Server-side answer key protection**: The ground-truth injected bugs and exact line locations are stored exclusively server-side in MongoDB and are **never** returned in the generation payload, preventing any answer key leaks in the browser network tab.
-3. **Timed code inspection workspace**: The candidate reviews the modified code in an interactive workspace, submits suspected bug locations with explanations of the root cause and consequence, under a countdown clock with silent paste detection.
-4. **LLM-calibrated evaluation**: The server evaluates findings against the ground truth, grading on both detection accuracy (caught vs. missed bugs) and explanation depth, returning constructive feedback on each bug.
-
-## Status
-
-**Built:** repo quiz end to end (generate → answer → grade), the company-side
-quiz gating job postings, the Day-1 Readiness Test for unfamiliar codebases attached to job postings,
-Bug Hunt mode with subtle bug injection and server-side secret grading,
-anonymous-first candidate profiles, the reputation score (comprehension + day-1 readiness + round history, shown as an unblended breakdown), connections and a
-text-only community feed, job listing/application CRUD.
-
-**Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these
-slot in): reputation feeding the reveal threshold, difficulty-calibrated
-scoring.
-
-
-### Community: what is deliberately absent
-
-Connections are instant and mutual — one document per pair, no request, no
-approval, no pending state — and a post is text that gets created and listed.
-Left out on purpose, each one a schema change rather than a flag so the feed
-cannot drift into a social network by default:
-
-- direct messages
-- threaded replies and comments
-- likes, reactions, any engagement counter
-- approval-required connections (requests, accept/decline, blocking)
-- media in posts
-
-An unrevealed candidate is a pseudonym in the feed and in a connections list for
-exactly as long as they are one on their profile: names are resolved at read time
-from `users`, and an unrevealed one is never in the payload at all.
+---
 
 ## Running locally
 
+Prerequisites: Python 3.11+, Node 20+, a MongoDB connection string, and a Gemini
+API key.
+
 ### Backend
+
 ```bash
 cd backend
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in MONGO_URI, GEMINI_API_KEY
-uvicorn app.main:app --reload
+cp .env.example .env
+uvicorn app.main:app --reload                      # http://localhost:8000
 ```
 
+`backend/.env.example` holds exactly five keys:
+
+| Key | Required | Notes |
+|---|---|---|
+| `MONGO_URI` | yes | Atlas or local; falls back to `mongodb://localhost:27017` if unset |
+| `GEMINI_API_KEY` | yes | all four modes call Gemini |
+| `GEMINI_MODEL` | no | defaults to `gemini-3.6-flash`; confirm the current name in Google AI Studio |
+| `GITHUB_TOKEN` | no | raises the GitHub API rate limit from 60/hr to 5000/hr |
+| `JWT_SECRET` | yes for anything real | the code ships a dev placeholder so the app boots in CI; override it anywhere issuing real tokens |
+
+Nothing calls `os.getenv()` outside `app/core/config.py`.
+
 ### Frontend
+
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local   # override VITE_API_BASE if needed
-npm run dev
+cp .env.example .env.local   # VITE_API_BASE, defaults to http://localhost:8000/api/v1
+npm run dev                  # http://localhost:5173
 ```
 
+React 18 + Vite 5, no router and no state library — tabs are `useState` in
+`App.jsx`, and the access token lives in browser storage.
+
 ### Or both via Docker
+
 ```bash
 docker compose up --build
 ```
 
+Reads `backend/.env` for the backend and injects `VITE_API_BASE` for the
+frontend. Both services bind-mount their source for live reload.
+
 ## Tests
+
 ```bash
-cd backend && pytest tests
+cd backend && pytest tests    # 232 tests; Gemini and Mongo are always mocked
+cd frontend && npm test       # 23 tests via node:test, no runner dependency
 ```
+
+The backend suite is hermetic by design — it never spends API quota, never needs
+credentials, and passes with no `.env` present. If a test in that package makes a
+real network call, that is a bug in the test.
+
+CI (`.github/workflows/ci.yml`) runs the backend suite on Python 3.11 and the
+frontend tests plus a production build on Node 20, for every PR and every push to
+`main`.
+
+## Status
+
+**Built:** repo quiz end to end (generate → answer → follow-up → grade); the
+company-side quiz gating job postings; the Day-1 Readiness test on employer trial
+repos; Bug Hunt with server-side answer keys; auth with candidate/employer roles;
+the anonymous-first funnel and reveal threshold; the reputation breakdown;
+connections and a text-only feed; job listing, application, and applicant review.
+
+**Designed, not yet built** (see `docs/ARCHITECTURE.md` for where these slot in):
+server-issued timing, difficulty-calibrated scoring, Bug Hunt feeding reputation,
+and the full reputation score replacing the single-quiz reveal threshold.
