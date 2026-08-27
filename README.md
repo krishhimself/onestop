@@ -262,6 +262,100 @@ can touch its applications.
 
 ---
 
+## System design
+
+Every principle below is load-bearing in the code, and each names the file that
+implements it.
+
+**Layered architecture.** `app/api/` (HTTP) → `app/services/` (business logic) →
+`app/repositories/` (data access) → `app/db/` and `app/integrations/` (Mongo,
+GitHub, Gemini). Dependencies point one direction only, and that is checkable
+rather than aspirational: nothing under `app/api/` imports a repository or the
+database, no service imports `app/db/mongodb.py`, and no repository imports a
+service. It is why the whole backend suite can mock Gemini and Mongo without the
+layers above noticing.
+
+**Repository pattern.** One file owns one collection — `user_repository` (users),
+`quiz_repository` (quiz_attempts), `company_quiz_repository`
+(company_quiz_attempts), `job_repository` (jobs, applications),
+`connection_repository` (connections), `post_repository` (posts). `get_collection()`
+is called in exactly those six files and nowhere else, so every query against a
+collection sits in one place, next to the document shape documented in
+`app/models/`. The split between `quiz_attempts` and `company_quiz_attempts` is
+deliberate: they are separate collections rather than one with a `kind` field, so
+a company quiz can never be counted as candidate comprehension by a query that
+forgot to filter.
+
+**Separation of concerns.** Endpoints translate HTTP and map errors to status
+codes; they hold no logic. External APIs are sealed off — `httpx` and
+`google.generativeai` are imported nowhere outside `app/integrations/`, so
+rate-limit handling, auth headers, and prompt shape each live in one file. The
+frontend mirrors it: `shared/api/client.js` is the only module that calls
+`fetch()`, which is why token attachment and 401-driven logout are written once.
+
+**Stateless authentication.** `app/core/security.py` issues and verifies HS256
+JWTs carrying `sub`, `role`, `iat`, and `exp`. There is no session store, so any
+process can serve any request given only the signing key. `decode_access_token()`
+collapses every JWT failure into a single `ValueError`, so no endpoint can
+accidentally treat an expired token differently from a forged one.
+
+**Dependency injection for authorization.** `app/core/dependencies.py` exposes
+`get_current_user` and `get_current_employer` as FastAPI dependencies, so a route
+declares what it requires instead of re-implementing the check. The role is read
+off the signed token, never off a request body — a candidate account cannot post
+jobs by claiming to be a company.
+
+**Centralized configuration.** A single pydantic-settings `Settings` object in
+`app/core/config.py`; `os.getenv()` appears nowhere else in the backend, so no
+value can be read from two places with two different defaults. `.env` and
+`.env.local` are gitignored and only `.env.example` is tracked, so secrets stay
+out of source control.
+
+**Input validation at the boundary.** Pydantic schemas in `app/schemas/` validate
+before any handler runs: `EmailStr`, `Literal` for roles and application statuses,
+`Field(min_length=8, max_length=72)` on passwords (bcrypt ignores past 72 bytes,
+so longer input is rejected rather than silently truncated), and length-capped
+post text. Identity is never accepted from a body — `QuizGenerateRequest` has no
+`user_id` field precisely so an attempt cannot be attributed to someone else.
+
+**Rate-limit handling.** `github_client._headers()` attaches `GITHUB_TOKEN` when
+one is configured, raising the GitHub ceiling from 60 to 5000 requests/hour;
+generating one quiz costs up to 13 calls (one tree, twelve files), so the
+unauthenticated ceiling is roughly four quizzes an hour. On the client,
+`pasteDetect.js` thresholds an input *rate* — >40 characters inside 100 ms — to
+tell typing from pasting.
+
+**One lazily-initialized connection pool.** `app/db/mongodb.py` holds a single
+Motor client for the process behind a `CollectionProxy` that defers connecting
+until the first query, with an in-memory `mongomock` fallback. Repositories can
+therefore bind their collection at import time without the app needing a live
+database to boot or to run its tests.
+
+**Idempotency and replay safety.** A graded company quiz is terminal: retrying the
+grading call returns the stored outcome instead of minting a second posting
+(`company_quiz_service.grade_and_post`). Connecting to someone twice returns the
+existing connection with `created: false` rather than failing or duplicating.
+
+**Fail-safe defaults.** A missing `revealed` key reads as `False`, so the private
+state is also the default for rows written before the field existed. Login answers
+identically for an unknown email and a wrong password, and a quiz belonging to
+someone else raises the same 404 as one that does not exist — neither endpoint can
+be used to enumerate what is really there.
+
+**CORS.** `app/main.py` mounts `CORSMiddleware` with `allow_origins=["*"]`, which
+is correct for local development and must be narrowed before deployment. The code
+says so at the call site rather than leaving it implied.
+
+**Not implemented — deliberately noted rather than claimed.** There is no caching
+layer, no background workers, no message queue, and no horizontal-scaling
+configuration; every request is served synchronously in-process, and Gemini calls
+block the request that made them. Two of those have a place prepared but no
+implementation: statelessness means added instances would need no session
+affinity, and the repository layer is where a cache would go. There is also no
+server-side rate limiting on the API itself.
+
+---
+
 ## Known limitations
 
 **Comprehension is not difficulty.** A simple project can legitimately score

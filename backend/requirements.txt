@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 motor
+mongomock-motor  # runtime, not test-only: db/mongodb.py imports it at module level for its in-memory fallback
 httpx
 google-generativeai
 pydantic[email]
