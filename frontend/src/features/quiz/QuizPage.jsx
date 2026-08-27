@@ -2,17 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import RepoInput from "./components/RepoInput";
 import QuestionCard from "./components/QuestionCard";
 import ScoreResult from "./components/ScoreResult";
-import BugHuntWorkspace from "./components/BugHuntWorkspace";
-import BugHuntResult from "./components/BugHuntResult";
 import {
   generateQuiz,
   generateDay1Quiz,
   submitQuiz,
   submitFollowUp,
-  generateBugHunt,
-  submitBugHunt,
 } from "./api";
-import { ClockIcon, ShieldLockIcon, SparklesIcon, QuizIcon } from "../../shared/components/Icons";
+import { ClockIcon } from "../../shared/components/Icons";
 
 export default function QuizPage({
   onUnauthorized,
@@ -22,7 +18,6 @@ export default function QuizPage({
   onDay1Complete = null,
   onCancel = null,
 }) {
-  const [mode, setMode] = useState("comprehension"); // "comprehension" | "bughunt"
   const [repoUrl, setRepoUrl] = useState(day1Job?.trial_repo_url || "");
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -33,16 +28,12 @@ export default function QuizPage({
   const [error, setError] = useState("");
   const [expired, setExpired] = useState(() => new Set());
 
-  // Bug Hunt State
-  const [bugHuntChallenge, setBugHuntChallenge] = useState(null);
-  const [bugHuntResult, setBugHuntResult] = useState(null);
-
   // Live countdown per question, kept in a ref so ticking never re-renders the page.
   const timeLeft = useRef({});
   // Paste signals per question. Also a ref — recording must stay invisible.
   const inputSignal = useRef({});
   // Guards against the auto-submit firing twice (expiry racing a manual click).
-  const sent = useRef({ answers: false, followup: false, bughunt: false });
+  const sent = useRef({ answers: false, followup: false });
 
   const limit = quiz?.time_limit_seconds ?? 75;
 
@@ -56,13 +47,11 @@ export default function QuizPage({
     setFollowup(null);
     setFollowupAnswer("");
     setResult(null);
-    setBugHuntChallenge(null);
-    setBugHuntResult(null);
     setError("");
     setExpired(new Set());
     timeLeft.current = {};
     inputSignal.current = {};
-    sent.current = { answers: false, followup: false, bughunt: false };
+    sent.current = { answers: false, followup: false };
     if (onCancel) onCancel();
   }
 
@@ -115,40 +104,6 @@ export default function QuizPage({
     } catch (e) {
       if (e.status === 401) return onUnauthorized?.();
       setError(e.message || "Failed to generate quiz from repository.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGenerateBugHunt() {
-    setLoading(true);
-    setError("");
-    setBugHuntChallenge(null);
-    setBugHuntResult(null);
-    sent.current.bughunt = false;
-    try {
-      const data = await generateBugHunt(repoUrl);
-      setBugHuntChallenge(data);
-    } catch (e) {
-      if (e.status === 401) return onUnauthorized?.();
-      setError(e.message || "Failed to generate Bug Hunt challenge from repository.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSubmitBugHunt(findings) {
-    if (sent.current.bughunt) return;
-    sent.current.bughunt = true;
-    setLoading(true);
-    setError("");
-    try {
-      const resultData = await submitBugHunt(bugHuntChallenge.bug_hunt_id, findings);
-      setBugHuntResult(resultData);
-    } catch (e) {
-      if (e.status === 401) return onUnauthorized?.();
-      setError(e.message || "Failed to evaluate Bug Hunt findings.");
-      sent.current.bughunt = false;
     } finally {
       setLoading(false);
     }
@@ -213,35 +168,6 @@ export default function QuizPage({
 
   return (
     <div className="quiz-container">
-      {/* Mode Switcher Tabs (Candidate Evaluation Modes) */}
-      {!isDay1 && !quiz && !bugHuntChallenge && (
-        <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-          <button
-            type="button"
-            className={`btn ${mode === "comprehension" ? "btn-primary" : "btn-secondary"}`}
-            onClick={() => {
-              setMode("comprehension");
-              setError("");
-            }}
-          >
-            <QuizIcon size={14} />
-            <span>Comprehension Quiz</span>
-          </button>
-
-          <button
-            type="button"
-            className={`btn ${mode === "bughunt" ? "btn-primary" : "btn-secondary"}`}
-            onClick={() => {
-              setMode("bughunt");
-              setError("");
-            }}
-          >
-            <SparklesIcon size={14} />
-            <span>Bug Hunt Mode</span>
-          </button>
-        </div>
-      )}
-
       {/* Top Header Banner */}
       {isDay1 ? (
         <div className="page-hero">
@@ -270,18 +196,6 @@ export default function QuizPage({
             )}
           </p>
         </div>
-      ) : mode === "bughunt" ? (
-        <div className="page-hero">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <h1 className="page-hero-title">
-              Bug Hunt Mode
-            </h1>
-            <span className="badge badge-accent">Code Integrity Challenge</span>
-          </div>
-          <p className="page-hero-desc">
-            We inject 2–3 subtle, realistic logic bugs into copies of your own source files and ask you to find them. The ultimate test that you genuinely understand what you shipped.
-          </p>
-        </div>
       ) : (
         <div className="page-hero">
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
@@ -302,197 +216,150 @@ export default function QuizPage({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* FLOW A: Bug Hunt Mode                                                     */}
-      {/* ========================================================================= */}
-      {mode === "bughunt" && !isDay1 && (
-        <>
-          {/* Step 1: Input URL for Bug Hunt */}
-          {!bugHuntChallenge && !bugHuntResult && (
-            <RepoInput
-              value={repoUrl}
-              onChange={setRepoUrl}
-              onSubmit={handleGenerateBugHunt}
-              loading={loading}
-              title="Bug Hunt Codebase Injection"
-              description="Enter your public repository URL. Gemini will inject 2-3 subtle, realistic semantic bugs into copies of your source code and challenge you to identify and explain them within a countdown clock."
-              submitLabel="Start Bug Hunt Challenge"
-              loadingLabel="Injecting Subtle Bugs..."
-            />
-          )}
-
-          {/* Step 2: Interactive Bug Hunt Workspace */}
-          {bugHuntChallenge && !bugHuntResult && (
-            <BugHuntWorkspace
-              challenge={bugHuntChallenge}
-              onSubmit={handleSubmitBugHunt}
-              busy={loading}
-            />
-          )}
-
-          {/* Step 3: Bug Hunt Result & Feedback */}
-          {bugHuntResult && (
-            <BugHuntResult
-              result={bugHuntResult}
-              onRestart={handleReset}
-              onNavigateReputation={onNavigateReputation}
-            />
-          )}
-        </>
+      {/* Step 1: Input URL (only for candidate's own repo quiz, or loading state for Day-1) */}
+      {!quiz && (
+        isDay1 ? (
+          <div className="card" style={{ textAlign: "center", padding: "48px 20px" }}>
+            <ClockIcon size={32} style={{ color: "var(--accent)", marginBottom: "12px" }} />
+            <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>
+              Generating Day-1 Readiness Test
+            </h3>
+            <p style={{ color: "var(--text-muted)", fontSize: "13px", maxWidth: "440px", margin: "0 auto 16px" }}>
+              Analyzing the employer's trial repository and crafting unfamiliar-codebase orientation questions...
+            </p>
+            {loading ? (
+              <span className="badge badge-mist">Reading trial repository...</span>
+            ) : (
+              <button className="btn btn-primary" onClick={handleGenerateDay1}>
+                Start Day-1 Readiness Test
+              </button>
+            )}
+          </div>
+        ) : (
+          <RepoInput
+            value={repoUrl}
+            onChange={setRepoUrl}
+            onSubmit={handleGenerate}
+            loading={loading}
+          />
+        )
       )}
 
-      {/* ========================================================================= */}
-      {/* FLOW B: Standard Comprehension Quiz / Day-1 Test Flow                     */}
-      {/* ========================================================================= */}
-      {mode === "comprehension" && (
-        <>
-          {/* Step 1: Input URL (only for candidate's own repo quiz, or loading state for Day-1) */}
-          {!quiz && (
-            isDay1 ? (
-              <div className="card" style={{ textAlign: "center", padding: "48px 20px" }}>
-                <ClockIcon size={32} style={{ color: "var(--accent)", marginBottom: "12px" }} />
-                <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>
-                  Generating Day-1 Readiness Test
-                </h3>
-                <p style={{ color: "var(--text-muted)", fontSize: "13px", maxWidth: "440px", margin: "0 auto 16px" }}>
-                  Analyzing the employer's trial repository and crafting unfamiliar-codebase orientation questions...
-                </p>
-                {loading ? (
-                  <span className="badge badge-mist">Reading trial repository...</span>
-                ) : (
-                  <button className="btn btn-primary" onClick={handleGenerateDay1}>
-                    Start Day-1 Readiness Test
-                  </button>
-                )}
-              </div>
-            ) : (
-              <RepoInput
-                value={repoUrl}
-                onChange={setRepoUrl}
-                onSubmit={handleGenerate}
-                loading={loading}
-              />
-            )
-          )}
-
-          {/* Step 2: Main Questions Interrogation Round */}
-          {quiz && !followup && !result && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="quiz-header-bar">
-                <div className="quiz-rules-pill">
-                  <ClockIcon size={14} style={{ color: "var(--text-subtle)" }} />
-                  <span>
-                    <strong>{limit}s per question</strong> · Answers lock automatically on timer expiry
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span className="badge badge-mist">
-                    {quiz.questions.length} Questions
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={handleReset}
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-
-              {quiz.questions.map((q, idx) => (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  questionNumber={idx + 1}
-                  totalQuestions={quiz.questions.length}
-                  answer={answers[q.id]}
-                  timeLimit={limit}
-                  onTick={(id, s) => (timeLeft.current[id] = s)}
-                  onExpire={markExpired}
-                  onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
-                  onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
-                />
-              ))}
-
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                <button
-                  className="btn btn-primary btn-lg"
-                  onClick={handleSubmit}
-                  disabled={loading}
-                >
-                  {loading ? "Submitting Answers..." : "Submit Round for Defense"}
-                </button>
-              </div>
+      {/* Step 2: Main Questions Interrogation Round */}
+      {quiz && !followup && !result && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="quiz-header-bar">
+            <div className="quiz-rules-pill">
+              <ClockIcon size={14} style={{ color: "var(--text-subtle)" }} />
+              <span>
+                <strong>{limit}s per question</strong> · Answers lock automatically on timer expiry
+              </span>
             </div>
-          )}
 
-          {/* Step 3: Adaptive Follow-Up Stage */}
-          {followup && !result && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="followup-card">
-                <div className="followup-badge-callout">
-                  <span className="badge badge-accent">
-                    Adaptive Defense Round
-                  </span>
-                  <span className="badge badge-mist">
-                    {followup.time_limit_seconds}s Clock
-                  </span>
-                </div>
-
-                <h2 style={{ fontSize: "17px", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
-                  Defend Your Reasoning
-                </h2>
-
-                <p className="followup-explanation">
-                  The evaluation engine identified a specific formulation in your previous answers to push on. Defend your logic clearly in your own words.
-                </p>
-
-                <QuestionCard
-                  question={{
-                    id: followup.followup.id,
-                    question: followup.followup.question,
-                    category: "Adaptive Defense",
-                  }}
-                  answer={followupAnswer}
-                  timeLimit={followup.time_limit_seconds}
-                  onTick={(id, s) => (timeLeft.current[id] = s)}
-                  onExpire={markExpired}
-                  onAnswerChange={(_, val) => setFollowupAnswer(val)}
-                />
-
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "14px" }}>
-                  <button
-                    className="btn btn-primary btn-lg"
-                    onClick={handleFollowUp}
-                    disabled={loading}
-                  >
-                    {loading ? "Grading Attempt..." : "Submit Follow-Up & Grade"}
-                  </button>
-                </div>
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="badge badge-mist">
+                {quiz.questions.length} Questions
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleReset}
+              >
+                Reset
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* Step 4: Final Score & Breakdown */}
-          {result && (
-            <ScoreResult
-              result={result}
-              complexity={quiz?.complexity}
-              onReset={handleReset}
-              onViewReputation={onNavigateReputation}
-              isDay1={isDay1}
-              day1Job={day1Job}
-              onCompleteDay1={
-                onDay1Complete && quiz?.quiz_id
-                  ? () => onDay1Complete(result, quiz.quiz_id)
-                  : null
-              }
+          {quiz.questions.map((q, idx) => (
+            <QuestionCard
+              key={q.id}
+              question={q}
+              questionNumber={idx + 1}
+              totalQuestions={quiz.questions.length}
+              answer={answers[q.id]}
+              timeLimit={limit}
+              onTick={(id, s) => (timeLeft.current[id] = s)}
+              onExpire={markExpired}
+              onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
+              onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
             />
-          )}
-        </>
+          ))}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? "Submitting Answers..." : "Submit Round for Defense"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Adaptive Follow-Up Stage */}
+      {followup && !result && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="followup-card">
+            <div className="followup-badge-callout">
+              <span className="badge badge-accent">
+                Adaptive Defense Round
+              </span>
+              <span className="badge badge-mist">
+                {followup.time_limit_seconds}s Clock
+              </span>
+            </div>
+
+            <h2 style={{ fontSize: "17px", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+              Defend Your Reasoning
+            </h2>
+
+            <p className="followup-explanation">
+              The evaluation engine identified a specific formulation in your previous answers to push on. Defend your logic clearly in your own words.
+            </p>
+
+            <QuestionCard
+              question={{
+                id: followup.followup.id,
+                question: followup.followup.question,
+                category: "Adaptive Defense",
+              }}
+              answer={followupAnswer}
+              timeLimit={followup.time_limit_seconds}
+              onTick={(id, s) => (timeLeft.current[id] = s)}
+              onExpire={markExpired}
+              onAnswerChange={(_, val) => setFollowupAnswer(val)}
+            />
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "14px" }}>
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleFollowUp}
+                disabled={loading}
+              >
+                {loading ? "Grading Attempt..." : "Submit Follow-Up & Grade"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Final Score & Breakdown */}
+      {result && (
+        <ScoreResult
+          result={result}
+          complexity={quiz?.complexity}
+          onReset={handleReset}
+          onViewReputation={onNavigateReputation}
+          isDay1={isDay1}
+          day1Job={day1Job}
+          onCompleteDay1={
+            onDay1Complete && quiz?.quiz_id
+              ? () => onDay1Complete(result, quiz.quiz_id)
+              : null
+          }
+        />
       )}
     </div>
   );
 }
-

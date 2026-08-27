@@ -205,3 +205,132 @@ async def test_bughunt_empty_repo_error(monkeypatch):
         headers=AUTH_HEADERS,
     )
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_bughunt_attempt_saved_with_bughunt_type(monkeypatch):
+    """
+    Verifies that the attempt is stored in the repository with type: 'bughunt'.
+    """
+    from app.repositories import quiz_repository
+
+    monkeypatch.setattr(
+        "app.integrations.github_client.fetch_repo_files",
+        AsyncMock(return_value=MOCK_SOURCE_FILES),
+    )
+    monkeypatch.setattr(
+        "app.integrations.gemini_client.generate_bug_hunt",
+        AsyncMock(return_value=(MOCK_MODIFIED_FILES, MOCK_INJECTED_BUGS)),
+    )
+
+    gen_res = client.post(
+        "/api/v1/quiz/bughunt/generate",
+        json={"repo_url": SAMPLE_REPO_URL},
+        headers=AUTH_HEADERS,
+    )
+    assert gen_res.status_code == 200
+    bug_hunt_id = gen_res.json()["bug_hunt_id"]
+
+    attempt = await quiz_repository.get_attempt(bug_hunt_id)
+    assert attempt is not None
+    assert attempt["type"] == "bughunt"
+    assert attempt["repo_url"] == SAMPLE_REPO_URL
+    assert attempt["user_id"] == "user_candidate_1"
+    assert attempt["status"] == "generated"
+    assert len(attempt["injected_bugs"]) == 1
+    assert attempt["injected_bugs"][0]["id"] == "bug_1"
+
+
+@pytest.mark.asyncio
+async def test_bughunt_grading_distinguishes_catches_and_misses(monkeypatch):
+    """
+    Verifies that grading evaluates catches vs misses accurately when some bugs are missed.
+    """
+    multi_bugs = [
+        {
+            "id": "bug_1",
+            "file_path": "app/calculator.py",
+            "line_hint": "line 3 in calculate_total",
+            "bug_type": "off_by_one",
+            "description": "Slice items[:-1] ignores the last element in items",
+            "impact": "Cart total missing last item",
+        },
+        {
+            "id": "bug_2",
+            "file_path": "app/auth.py",
+            "line_hint": "line 12 in check_permission",
+            "bug_type": "inverted_condition",
+            "description": "Condition inverted: if is_admin allows unauthorized users",
+            "impact": "Security bypass for non-admins",
+        },
+    ]
+
+    partial_grade_result = {
+        "score": 50.0,
+        "bugs_caught": 1,
+        "total_bugs": 2,
+        "breakdown": [
+            {
+                "bug_id": "bug_1",
+                "file_path": "app/calculator.py",
+                "description": "Slice items[:-1] ignores the last element",
+                "caught": True,
+                "explanation_quality": "good",
+                "feedback": "Spotted the slicing off-by-one error.",
+            },
+            {
+                "bug_id": "bug_2",
+                "file_path": "app/auth.py",
+                "description": "Condition inverted in auth check",
+                "caught": False,
+                "explanation_quality": "missed",
+                "feedback": "Candidate did not identify the inverted condition in auth check.",
+            },
+        ],
+        "summary": "Candidate caught the arithmetic off-by-one bug but missed the authorization logic defect.",
+    }
+
+    monkeypatch.setattr(
+        "app.integrations.github_client.fetch_repo_files",
+        AsyncMock(return_value=MOCK_SOURCE_FILES),
+    )
+    monkeypatch.setattr(
+        "app.integrations.gemini_client.generate_bug_hunt",
+        AsyncMock(return_value=(MOCK_MODIFIED_FILES, multi_bugs)),
+    )
+    monkeypatch.setattr(
+        "app.integrations.gemini_client.grade_bug_hunt",
+        AsyncMock(return_value=partial_grade_result),
+    )
+
+    gen_res = client.post(
+        "/api/v1/quiz/bughunt/generate",
+        json={"repo_url": SAMPLE_REPO_URL},
+        headers=AUTH_HEADERS,
+    )
+    bug_hunt_id = gen_res.json()["bug_hunt_id"]
+
+    sub_res = client.post(
+        "/api/v1/quiz/bughunt/submit",
+        json={
+            "bug_hunt_id": bug_hunt_id,
+            "findings": [
+                {
+                    "file_path": "app/calculator.py",
+                    "suspected_location": "calculate_total",
+                    "description": "The slice leaves out the last item.",
+                }
+            ],
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert sub_res.status_code == 200
+    res = sub_res.json()
+    assert res["score"] == 50.0
+    assert res["bugs_caught"] == 1
+    assert res["total_bugs"] == 2
+    assert res["breakdown"][0]["caught"] is True
+    assert res["breakdown"][1]["caught"] is False
+    assert res["breakdown"][1]["explanation_quality"] == "missed"
+

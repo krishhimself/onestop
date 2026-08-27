@@ -83,7 +83,7 @@ export default function ScoreResult({
             )}
 
             {onViewReputation && (
-              <button className="btn btn-primary" onClick={onViewReputation}>
+              <button className="btn btn-secondary" onClick={onViewReputation}>
                 <ReputationIcon size={14} />
                 <span>View Full Reputation Profile</span>
               </button>

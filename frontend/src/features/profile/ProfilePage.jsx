@@ -117,7 +117,7 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
             </div>
 
             <span className="profile-role-sub">
-              {profile?.role === "employer" ? "Verified Employer / Recruiter" : "Software Engineer"}
+              {profile?.role === "employer" ? "Employer / Hiring Manager" : "Software Engineer"}
             </span>
 
             {revealed && profile?.email && (
@@ -159,7 +159,7 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
             onNavigateQuiz && (
               <button className="btn btn-primary" onClick={onNavigateQuiz}>
                 <JobsIcon size={14} />
-                <span>Post a Verified Role</span>
+                <span>Post a Job (Quiz Gated)</span>
               </button>
             )
           ) : (
@@ -174,10 +174,12 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
       </div>
 
       {/* Reveal / Account Status Notice */}
-      <div className={`card ${revealed || profile?.role === "employer" ? "alert-success" : "alert-info"}`} style={{ padding: "16px 18px" }}>
+      <div className={`card ${revealed ? "alert-success" : profile?.role === "employer" ? "alert-info" : "alert-info"}`} style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-          {revealed || profile?.role === "employer" ? (
+          {revealed ? (
             <CheckCircleIcon size={18} style={{ color: "var(--success)", flexShrink: 0, marginTop: "2px" }} />
+          ) : profile?.role === "employer" ? (
+            <JobsIcon size={18} style={{ color: "var(--accent)", flexShrink: 0, marginTop: "2px" }} />
           ) : (
             <ShieldLockIcon size={18} style={{ color: "var(--accent)", flexShrink: 0, marginTop: "2px" }} />
           )}
@@ -185,14 +187,14 @@ export default function ProfilePage({ userId, onUnauthorized, onNavigateQuiz, on
           <div>
             <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "2px", color: "var(--text-main)" }}>
               {profile?.role === "employer"
-                ? "Verified Employer Account"
+                ? "Employer Account — Posting Quiz Gate Active"
                 : revealed
                 ? "Identity Verification: Unlocked"
                 : "Anonymous-First Profile Active"}
             </h3>
             <p style={{ fontSize: "13px", color: "var(--text-muted)", lineHeight: "1.5" }}>
               {profile?.role === "employer"
-                ? "Employer accounts create job postings gated behind live company-side technical audits to guarantee postings reflect real engineering expectations."
+                ? "All job postings you create are gated behind a live company-side technical quiz (score 70+ required) to guarantee that every posting reflects genuine engineering understanding."
                 : revealed
                 ? "You passed a defended repository quiz with a score of 70/100 or higher. Employers viewing your applications or candidate profile now see your real name and verified contact details."
                 : "Your name and email remain hidden until you score 70+ on a defended repo quiz. Code earns the introduction before credentials matter."}

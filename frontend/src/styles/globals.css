@@ -45,6 +45,7 @@
   --text-subtle: #64748B;
   --text-dim: #94A3B8;
   --white: #FFFFFF;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
   /* Functional Status */
   --success: #16A34A;

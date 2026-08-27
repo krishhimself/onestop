@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Navbar from "./shared/components/Navbar";
 import Avatar from "./shared/components/Avatar";
 import QuizPage from "./features/quiz/QuizPage";
+import BugHuntPage from "./features/quiz/BugHuntPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReputationPage from "./features/reputation/ReputationPage";
 import JobsPage from "./features/jobs/JobsPage";
@@ -18,6 +19,7 @@ import {
   CheckCircleIcon,
   ReputationIcon,
   PlusIcon,
+  JobsIcon,
 } from "./shared/components/Icons";
 
 export default function App() {
@@ -78,8 +80,8 @@ export default function App() {
   const role = userProfile?.role || getRole() || "candidate";
   const isEmployer = role === "employer";
 
-  // Prevent role mismatch on tab (e.g. employer on repo quiz or candidate on employer post flow)
-  const currentTab = isEmployer && tab === "quiz" ? "jobs" : tab;
+  // Prevent role mismatch on tab (e.g. employer on repo quiz/bughunt or candidate on employer post flow)
+  const currentTab = isEmployer && (tab === "quiz" || tab === "bughunt") ? "jobs" : tab;
 
   return (
     <div className="app-shell">
@@ -95,7 +97,7 @@ export default function App() {
       />
 
       {/* Main 3-Column Layout */}
-      <main className={`main-layout ${currentTab === "quiz" ? "no-right-col" : ""}`}>
+      <main className={`main-layout ${currentTab === "quiz" || currentTab === "bughunt" ? "no-right-col" : ""}`}>
         {/* LEFT COLUMN: Profile & Verification Mini-Card */}
         <aside style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <div className="card" style={{ padding: "18px", textAlign: "center" }}>
@@ -113,14 +115,14 @@ export default function App() {
               {name}
             </h3>
             <p style={{ fontSize: "12px", color: "var(--text-subtle)", marginBottom: "10px" }}>
-              {isEmployer ? "Verified Employer" : "Software Engineer"}
+              {isEmployer ? "Hiring Manager / Employer" : "Software Engineer"}
             </p>
 
             <div style={{ display: "inline-flex", marginBottom: "14px" }}>
               {isEmployer ? (
                 <span className="badge badge-accent">
-                  <CheckCircleIcon size={11} />
-                  Verified Employer
+                  <JobsIcon size={11} />
+                  Employer Account
                 </span>
               ) : revealed ? (
                 <span className="badge badge-success">
@@ -138,8 +140,8 @@ export default function App() {
             <div style={{ borderTop: "1px solid var(--mist-border-light)", paddingTop: "10px", textAlign: "left", fontSize: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", color: "var(--text-muted)" }}>
                 <span>Account Status:</span>
-                <strong style={{ color: isEmployer || revealed ? "var(--success)" : "var(--cream-text)" }}>
-                  {isEmployer ? "Employer Gate Active" : revealed ? "Unlocked" : "Locked (<70)"}
+                <strong style={{ color: isEmployer ? "var(--accent)" : revealed ? "var(--success)" : "var(--cream-text)" }}>
+                  {isEmployer ? "Posting Quiz Gate Active" : revealed ? "Unlocked (70+)" : "Locked (<70)"}
                 </strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}>
@@ -194,6 +196,14 @@ export default function App() {
             />
           )}
 
+          {!isEmployer && currentTab === "bughunt" && (
+            <BugHuntPage
+              onUnauthorized={onUnauthorized}
+              onNavigateReputation={() => setTab("reputation")}
+              onNavigateQuiz={() => setTab("quiz")}
+            />
+          )}
+
           {currentTab === "feed" && (
             <FeedPage
               userProfile={userProfile}
@@ -218,7 +228,7 @@ export default function App() {
         </section>
 
         {/* RIGHT COLUMN: Verified Engineers / Connections */}
-        {tab !== "quiz" && <SuggestedPeers />}
+        {currentTab !== "quiz" && currentTab !== "bughunt" && <SuggestedPeers />}
       </main>
     </div>
   );

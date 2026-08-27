@@ -4,7 +4,6 @@ import {
   ClockIcon,
   FileCodeIcon,
   PlusIcon,
-  ShieldLockIcon,
   SparklesIcon,
 } from "../../../shared/components/Icons";
 
@@ -34,8 +33,9 @@ export default function BugHuntWorkspace({
     },
   ]);
 
-  // Input tracker per finding
+  // Input tracker per finding (silent paste detection)
   const trackersRef = useRef(new Map());
+  const submittedRef = useRef(false);
 
   function getTracker(findingId) {
     if (!trackersRef.current.has(findingId)) {
@@ -44,10 +44,12 @@ export default function BugHuntWorkspace({
     return trackersRef.current.get(findingId);
   }
 
-  // Countdown timer
+  // Countdown timer with auto-submit
   useEffect(() => {
     if (secondsLeft <= 0) {
-      handleFinalSubmit();
+      if (!submittedRef.current) {
+        handleFinalSubmit();
+      }
       return;
     }
 
@@ -97,65 +99,83 @@ export default function BugHuntWorkspace({
 
   function handleFinalSubmit(e) {
     e?.preventDefault();
-    if (busy) return;
+    if (busy || submittedRef.current) return;
+    submittedRef.current = true;
 
-    // Filter valid findings with description
-    const formattedFindings = findings
-      .filter((f) => f.description.trim().length > 0)
-      .map((f) => {
-        const tracker = getTracker(f.id);
-        const snapshot = tracker.snapshot();
-        return {
-          file_path: f.file_path || modified_files[0]?.path || "source_file",
-          suspected_location: f.suspected_location.trim() || null,
-          description: f.description.trim(),
-          seconds_left: secondsLeft,
-          flagged_paste: snapshot.flagged_paste,
-          paste_delta: snapshot.paste_delta,
-        };
-      });
+    // Filter valid findings with description, or send at least one if empty upon timeout
+    const validFindings = findings.filter((f) => f.description.trim().length > 0);
+    const findingsToSend = validFindings.length > 0 ? validFindings : findings;
+
+    const formattedFindings = findingsToSend.map((f) => {
+      const tracker = getTracker(f.id);
+      const snapshot = tracker.snapshot();
+      return {
+        file_path: f.file_path || modified_files[0]?.path || "source_file",
+        suspected_location: f.suspected_location?.trim() || null,
+        description: f.description?.trim() || "(No explanation provided)",
+        seconds_left: secondsLeft,
+        flagged_paste: snapshot.flagged_paste,
+        paste_delta: snapshot.paste_delta,
+      };
+    });
 
     onSubmit(formattedFindings);
   }
 
-  const activeFile = modified_files[activeFileIndex] || modified_files[0] || { path: "file.py", content: "" };
+  const activeFile =
+    modified_files[activeFileIndex] ||
+    modified_files[0] || { path: "file.py", content: "" };
   const lines = (activeFile.content || "").split("\n");
 
   const progressPercent = Math.max(0, (secondsLeft / time_limit_seconds) * 100);
   const isUrgent = secondsLeft < 30;
-
   const validFindingsCount = findings.filter((f) => f.description.trim().length > 0).length;
 
   return (
-    <div className="card" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Top Header & Timer Bar */}
+    <div
+      className="card"
+      style={{
+        padding: "20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "18px",
+      }}
+    >
+      {/* Top Header & Countdown Timer Bar */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            marginBottom: "12px",
+          }}
+        >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <h2 style={{ fontSize: "18px", fontWeight: "700", margin: 0 }}>
-                Bug Hunt Challenge
+              <h2 style={{ fontSize: "17px", fontWeight: "700", margin: 0, color: "var(--text-main)" }}>
+                Active Bug Hunt Challenge
               </h2>
               <span className="badge badge-accent">
                 ~{expected_bug_count} Injected Bugs
               </span>
             </div>
             <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}>
-              We injected subtle logic bugs into your code. Inspect the source below and report every bug you find.
+              Inspect the modified source files below. Spot the subtle injected logic bugs and explain their impact.
             </p>
           </div>
 
           {/* Timer Clock */}
           <div
-            className={`badge ${isUrgent ? "badge-danger" : "badge-accent"}`}
+            className={`timer-pill ${isUrgent ? "urgent" : ""}`}
             style={{
               fontSize: "14px",
               padding: "6px 14px",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              fontWeight: "700",
-              fontVariantNumeric: "tabular-nums",
             }}
           >
             <ClockIcon size={16} />
@@ -170,7 +190,7 @@ export default function BugHuntWorkspace({
           style={{
             height: "4px",
             background: "var(--mist-border-light)",
-            borderRadius: "2px",
+            borderRadius: "var(--radius-full)",
             overflow: "hidden",
             width: "100%",
           }}
@@ -179,16 +199,23 @@ export default function BugHuntWorkspace({
             style={{
               height: "100%",
               width: `${progressPercent}%`,
-              background: isUrgent ? "var(--error)" : "var(--accent)",
+              background: isUrgent ? "var(--danger)" : "var(--accent)",
               transition: "width 1s linear, background-color 0.3s ease",
             }}
           />
         </div>
       </div>
 
-      {/* Main Grid: Code Viewer & Findings Panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "18px" }}>
-        {/* LEFT: Modified Code Block Viewer */}
+      {/* Main 2-Column Grid: Code Viewer (Left) & Findings Form (Right) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.15fr 0.85fr",
+          gap: "18px",
+          alignItems: "start",
+        }}
+      >
+        {/* LEFT COLUMN: Modified Code Block Viewer */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {/* File Selector Tabs */}
           {modified_files.length > 1 && (
@@ -212,38 +239,42 @@ export default function BugHuntWorkspace({
             style={{
               border: "1px solid var(--mist-border)",
               borderRadius: "var(--radius-md)",
-              background: "var(--navy-sunken)",
+              background: "#0F172A", // Professional dark terminal code editor
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <div
               style={{
                 padding: "8px 14px",
-                borderBottom: "1px solid var(--mist-border-light)",
-                background: "rgba(0, 0, 0, 0.2)",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(0, 0, 0, 0.3)",
                 fontSize: "12px",
                 fontFamily: "var(--font-mono)",
-                color: "var(--text-muted)",
+                color: "#94A3B8",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
               }}
             >
-              <span>{activeFile.path}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <FileCodeIcon size={13} style={{ color: "var(--accent)" }} />
+                <span>{activeFile.path}</span>
+              </div>
               <span>{lines.length} lines</span>
             </div>
 
             <div
               style={{
-                maxHeight: "520px",
+                maxHeight: "540px",
                 overflowY: "auto",
                 padding: "12px 0",
-                fontFamily: "var(--font-mono)",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: "12px",
-                lineHeight: "1.6",
-                color: "var(--text-main)",
+                lineHeight: "1.65",
+                color: "#E2E8F0",
               }}
             >
               {lines.map((line, i) => (
@@ -257,9 +288,9 @@ export default function BugHuntWorkspace({
                 >
                   <span
                     style={{
-                      width: "36px",
+                      width: "38px",
                       flexShrink: 0,
-                      color: "var(--text-dim)",
+                      color: "#64748B",
                       textAlign: "right",
                       paddingRight: "14px",
                       userSelect: "none",
@@ -273,6 +304,7 @@ export default function BugHuntWorkspace({
                       fontFamily: "inherit",
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
+                      color: "inherit",
                     }}
                   >
                     {line || " "}
@@ -283,11 +315,18 @@ export default function BugHuntWorkspace({
           </div>
         </div>
 
-        {/* RIGHT: Candidate Bug Findings Form */}
-        <form onSubmit={handleFinalSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {/* RIGHT COLUMN: Candidate Bug Findings Form */}
+        <form
+          onSubmit={handleFinalSubmit}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <h3 style={{ fontSize: "14px", fontWeight: "700", margin: 0, color: "var(--text-main)" }}>
-              Reported Findings ({validFindingsCount})
+              Suspected Bugs ({validFindingsCount})
             </h3>
             <button
               type="button"
@@ -299,7 +338,16 @@ export default function BugHuntWorkspace({
             </button>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "460px", overflowY: "auto", paddingRight: "4px" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              maxHeight: "470px",
+              overflowY: "auto",
+              paddingRight: "4px",
+            }}
+          >
             {findings.map((finding, idx) => (
               <div
                 key={finding.id}
@@ -311,6 +359,7 @@ export default function BugHuntWorkspace({
                   display: "flex",
                   flexDirection: "column",
                   gap: "10px",
+                  boxShadow: "var(--shadow-xs)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -351,7 +400,7 @@ export default function BugHuntWorkspace({
                     <input
                       type="text"
                       className="input-field"
-                      placeholder="e.g. Line 42 or calculateTotal"
+                      placeholder="e.g. Line 42 or calculate_total"
                       style={{ fontSize: "12px", padding: "6px 8px" }}
                       value={finding.suspected_location}
                       onChange={(e) => handleUpdateFinding(finding.id, "suspected_location", e.target.value)}
@@ -365,7 +414,7 @@ export default function BugHuntWorkspace({
                   </label>
                   <textarea
                     className="textarea-field"
-                    placeholder="Explain what the bug is, why it is wrong, and what consequence it causes..."
+                    placeholder="Explain what the defect is, why it is wrong, and what consequence it causes..."
                     rows={3}
                     style={{ fontSize: "12px", minHeight: "75px" }}
                     value={finding.description}

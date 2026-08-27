@@ -7,6 +7,7 @@ import {
   ReputationIcon,
   JobsIcon,
   LogOutIcon,
+  SparklesIcon,
 } from "./Icons";
 
 export default function Navbar({
@@ -40,13 +41,22 @@ export default function Navbar({
         {/* Center Tabs: Role-Gated */}
         <nav className="nav-tabs">
           {!isEmployer && (
-            <button
-              className={`nav-tab-btn ${activeTab === "quiz" ? "active" : ""}`}
-              onClick={() => onSelectTab("quiz")}
-            >
-              <QuizIcon size={15} />
-              <span>Repo Quiz</span>
-            </button>
+            <>
+              <button
+                className={`nav-tab-btn ${activeTab === "quiz" ? "active" : ""}`}
+                onClick={() => onSelectTab("quiz")}
+              >
+                <QuizIcon size={15} />
+                <span>Repo Quiz</span>
+              </button>
+              <button
+                className={`nav-tab-btn ${activeTab === "bughunt" ? "active" : ""}`}
+                onClick={() => onSelectTab("bughunt")}
+              >
+                <SparklesIcon size={15} />
+                <span>Bug Hunt</span>
+              </button>
+            </>
           )}
 
           {isEmployer && (

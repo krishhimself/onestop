@@ -99,3 +99,67 @@ async def test_generate_day1_questions_returns_parsed_list(monkeypatch):
     assert len(questions) == 2
     assert questions[0]["category"] == "orientation"
     assert questions[1]["category"] == "navigation"
+
+
+async def test_generate_bug_hunt_returns_modified_files_and_bugs(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.integrations import gemini_client
+
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps({
+        "modified_files": [{"path": "calculator.py", "content": "def calc(): return 0"}],
+        "injected_bugs": [
+            {
+                "id": "bug_1",
+                "file_path": "calculator.py",
+                "line_hint": "line 1",
+                "bug_type": "off_by_one",
+                "description": "Returns 0 instead of sum",
+                "impact": "Calculation fails",
+            }
+        ],
+    })
+    mock_model = MagicMock()
+    mock_model.generate_content_async = AsyncMock(return_value=mock_resp)
+    monkeypatch.setattr(gemini_client, "_model", lambda: mock_model)
+
+    modified, bugs = await gemini_client.generate_bug_hunt([{"path": "calculator.py", "content": "def calc(): return 1"}])
+    assert len(modified) == 1
+    assert modified[0]["path"] == "calculator.py"
+    assert len(bugs) == 1
+    assert bugs[0]["bug_type"] == "off_by_one"
+
+
+async def test_grade_bug_hunt_returns_parsed_grade(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    from app.integrations import gemini_client
+
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps({
+        "score": 95,
+        "bugs_caught": 1,
+        "total_bugs": 1,
+        "breakdown": [
+            {
+                "bug_id": "bug_1",
+                "file_path": "calculator.py",
+                "description": "Returns 0 instead of sum",
+                "caught": True,
+                "explanation_quality": "excellent",
+                "feedback": "Great catch",
+            }
+        ],
+        "summary": "Caught all bugs",
+    })
+    mock_model = MagicMock()
+    mock_model.generate_content_async = AsyncMock(return_value=mock_resp)
+    monkeypatch.setattr(gemini_client, "_model", lambda: mock_model)
+
+    result = await gemini_client.grade_bug_hunt(
+        [{"id": "bug_1", "description": "Returns 0 instead of sum"}],
+        [{"file_path": "calculator.py", "description": "It returns 0"}],
+    )
+    assert result["score"] == 95
+    assert result["bugs_caught"] == 1
+    assert result["breakdown"][0]["caught"] is True
+
