@@ -27,6 +27,9 @@ export default function QuizPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [expired, setExpired] = useState(() => new Set());
+  // Index of the question currently on screen. Only this one is mounted, so only
+  // its countdown runs; advancing remounts the next card with a fresh clock.
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   // Live countdown per question, kept in a ref so ticking never re-renders the page.
   const timeLeft = useRef({});
@@ -36,9 +39,29 @@ export default function QuizPage({
   const sent = useRef({ answers: false, followup: false });
 
   const limit = quiz?.time_limit_seconds ?? 75;
+  const questions = quiz?.questions ?? [];
+  const currentQuestion = questions[currentIndex] ?? null;
+  const isLastQuestion = currentIndex >= questions.length - 1;
 
   function markExpired(id) {
     setExpired((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }
+
+  // Moving on forfeits whatever time is left on the current question; the clock is
+  // per question, so there is no going back to spend it later.
+  function advance() {
+    if (isLastQuestion) {
+      handleSubmit();
+    } else {
+      setCurrentIndex(currentIndex + 1);
+    }
+  }
+
+  // Expiry locks the answer as-is and moves straight on, so the candidate never
+  // sits on a dead card. Running out on the last question commits the round.
+  function handleExpire(id) {
+    markExpired(id);
+    advance();
   }
 
   function handleReset() {
@@ -49,6 +72,7 @@ export default function QuizPage({
     setResult(null);
     setError("");
     setExpired(new Set());
+    setCurrentIndex(0);
     timeLeft.current = {};
     inputSignal.current = {};
     sent.current = { answers: false, followup: false };
@@ -63,6 +87,7 @@ export default function QuizPage({
     setFollowup(null);
     setFollowupAnswer("");
     setExpired(new Set());
+    setCurrentIndex(0);
     timeLeft.current = {};
     inputSignal.current = {};
     sent.current = { answers: false, followup: false };
@@ -94,6 +119,7 @@ export default function QuizPage({
     setFollowup(null);
     setFollowupAnswer("");
     setExpired(new Set());
+    setCurrentIndex(0);
     timeLeft.current = {};
     inputSignal.current = {};
     sent.current = { answers: false, followup: false };
@@ -154,12 +180,6 @@ export default function QuizPage({
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (quiz && !followup && !result && expired.size >= quiz.questions.length) {
-      handleSubmit();
-    }
-  }, [expired, quiz, followup, result]);
 
   const followupExpired = followup && expired.has(followup.followup.id);
   useEffect(() => {
@@ -270,28 +290,32 @@ export default function QuizPage({
             </div>
           </div>
 
-          {quiz.questions.map((q, idx) => (
+          {currentQuestion && (
             <QuestionCard
-              key={q.id}
-              question={q}
-              questionNumber={idx + 1}
-              totalQuestions={quiz.questions.length}
-              answer={answers[q.id]}
+              key={currentQuestion.id}
+              question={currentQuestion}
+              questionNumber={currentIndex + 1}
+              totalQuestions={questions.length}
+              answer={answers[currentQuestion.id]}
               timeLimit={limit}
               onTick={(id, s) => (timeLeft.current[id] = s)}
-              onExpire={markExpired}
+              onExpire={handleExpire}
               onInputSignal={(id, sig) => (inputSignal.current[id] = sig)}
               onAnswerChange={(id, val) => setAnswers((prev) => ({ ...prev, [id]: val }))}
             />
-          ))}
+          )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
             <button
               className="btn btn-primary btn-lg"
-              onClick={handleSubmit}
+              onClick={advance}
               disabled={loading}
             >
-              {loading ? "Submitting Answers..." : "Submit Round for Defense"}
+              {loading
+                ? "Submitting Answers..."
+                : isLastQuestion
+                  ? "Submit Round for Defense"
+                  : "Next Question"}
             </button>
           </div>
         </div>
